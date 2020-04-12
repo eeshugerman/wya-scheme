@@ -1,8 +1,10 @@
 module Main where
 import System.Environment
 
+stringSum :: [String] -> String
+stringSum args = show $ sum $ map read args
 
 main :: IO ()
 main = do
   args <- getArgs
-  putStrLn ("Hello, " ++ args !! 0 ++ " " ++ args !! 1)
+  putStrLn ("Sum: " ++ stringSum args)
