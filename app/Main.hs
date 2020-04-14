@@ -34,7 +34,9 @@ parseAtom = do
     _    -> Atom atom
 
 parseNumber :: Parser LispVal
-parseNumber = liftM (Number . read) $ many1 digit
+parseNumber = do
+  digits <- many1 digit
+  return . Number . read $ digits
 
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
@@ -44,7 +46,7 @@ parseExpr = parseAtom
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
   Left err -> "No match: " ++ show err
-  Right _ -> "Found value"
+  Right value -> "Found value"
 
 main :: IO ()
 main = do
