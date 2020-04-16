@@ -3,11 +3,6 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import System.Environment
 import Control.Monad
 
-symbol :: Parser Char
-symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
-
-spaces :: Parser ()
-spaces = skipMany1 space
 
 data LispVal = Atom String
              | List [LispVal]
@@ -17,10 +12,27 @@ data LispVal = Atom String
              | Bool Bool
              deriving Show
 
+symbol :: Parser Char
+symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
+
+spaces :: Parser ()
+spaces = skipMany1 space
+
+escapeChar :: Parser Char
+escapeChar = do
+  char '\\'
+  x <- oneOf ['"', 'n', 'r', 't', '\\']
+  return $ case x of
+    '"'  -> '"'
+    'n'  -> '\n'
+    'r'  -> '\r'
+    't'  -> '\t'
+    '\\' -> '\\'
+
 parseString :: Parser LispVal
 parseString = do
   char '"'
-  x <- many ((char '\\' >> char '"') <|> noneOf "\"")
+  x <- many (escapeChar <|> noneOf "\"")
   char '"'
   return $ String x
 
