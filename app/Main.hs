@@ -8,6 +8,7 @@ import Numeric
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
+             | Character Char
              | Number Integer
              | String String
              | Bool Bool
@@ -50,6 +51,8 @@ parseAtom = try parseBool <|> do
     symbol :: Parser Char
     symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
+parseCharacter :: Parser LispVal  -- TODO: "named" characters, eg #\newline, #\space
+parseCharacter = string "#\\" >> anyChar >>= (return . Character)
 
 parseNumber :: Parser LispVal
 parseNumber = do
@@ -65,7 +68,7 @@ parseNumber = do
     parseRadix :: Parser Char
     parseRadix = do { _ <- char '#'
                     ; base <- oneOf "bBoOdDxX"
-                    ; return $ toLower base
+                    ; return $ toLower base  -- TODO: Use a type instead of chars?
                     } <|> return 'd'
 
     readBinary :: String -> Integer
@@ -82,6 +85,7 @@ parseNumber = do
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
         <|> parseString
+        <|> parseCharacter
         <|> parseNumber
 
 readExpr :: String -> String
