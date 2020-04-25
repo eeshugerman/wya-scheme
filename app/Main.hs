@@ -9,11 +9,11 @@ data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
              | Character Char
-             | Number Integer
+             | Integer Integer
+             | Float Float
              | String String
              | Bool Bool
              deriving Show
-
 
 
 parseString :: Parser LispVal
@@ -54,11 +54,11 @@ parseAtom = try parseBool <|> do
 parseCharacter :: Parser LispVal  -- TODO: "named" characters, eg #\newline, #\space
 parseCharacter = string "#\\" >> anyChar >>= (return . Character)
 
-parseNumber :: Parser LispVal
-parseNumber = do
+parseInteger :: Parser LispVal
+parseInteger = do
   radix <- parseRadix
   many1 (digit <|> oneOf "abcdef") >>= (  -- TODO: get more specific here
-    return . Number . case radix of
+    return . Integer . case radix of
         'b' -> readBinary
         'o' -> fst . head . readOct
         'd' -> read
@@ -68,7 +68,7 @@ parseNumber = do
     parseRadix :: Parser Char
     parseRadix = do { _ <- char '#'
                     ; base <- oneOf "bBoOdDxX"
-                    ; return $ toLower base  -- TODO: Use a type instead of chars?
+                    ; return $ toLower base
                     } <|> return 'd'
 
     readBinary :: String -> Integer
@@ -82,11 +82,22 @@ parseNumber = do
         stringToInts s = [read [c] | c <- s]
 
 
+-- TODO: This will accept `.`. Is that a problem?
+-- TODO: Seems like there should be a better way to do this... `sequence`?
+-- TODO: #e / #i
+parseFloat :: Parser LispVal
+parseFloat = do
+  whole <- option "0" (many1 digit)
+  _ <- string "."
+  fractional <- option "" (many1 digit)
+  return . Float . fst . head $ readFloat (whole ++ "." ++ fractional)
+
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
         <|> parseString
         <|> parseCharacter
-        <|> parseNumber
+        <|> try parseFloat
+        <|> parseInteger
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
