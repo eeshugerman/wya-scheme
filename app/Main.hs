@@ -6,15 +6,39 @@ import Data.Char
 import Numeric
 
 data LispVal = Atom String
+             | Bool Bool
+             | Character Char
+             | String String
+
+             | Integer Integer
+             | Rational (Integer, Integer)
+             | Real Float
+             | Complex (Float, Float)
+
              | List [LispVal]
              | DottedList [LispVal] LispVal
-             | Character Char
-             | Integer Integer
-             | Float Float
-             | String String
-             | Bool Bool
+
              deriving Show
 
+parseAtom :: Parser LispVal
+parseAtom = do
+  first <- letter <|> symbol
+  rest <- many (letter <|> digit <|> symbol <|> char '#')
+  return $ Atom $ first:rest
+  where
+    symbol :: Parser Char
+    symbol = oneOf "!$%&|*+-/:<=>?@^_~"
+
+parseBool :: Parser LispVal
+parseBool = do
+  _ <- char '#'
+  val <- char 't' <|> char 'f'
+  return $ case val of
+    't' -> Bool True
+    'f' -> Bool False
+
+parseCharacter :: Parser LispVal  -- TODO: "named" characters, eg #\newline, #\space
+parseCharacter = fmap Character $ string "#\\" >> anyChar
 
 parseString :: Parser LispVal
 parseString = do
@@ -34,25 +58,7 @@ parseString = do
         't'  -> '\t'
         '\\' -> '\\'
 
-parseBool :: Parser LispVal
-parseBool = do
-  _ <- char '#'
-  val <- char 't' <|> char 'f'
-  return $ case val of
-    't' -> Bool True
-    'f' -> Bool False
 
-parseAtom :: Parser LispVal
-parseAtom = try parseBool <|> do
-  first <- letter <|> symbol
-  rest <- many (letter <|> digit <|> symbol <|> char '#')
-  return $ Atom $ first:rest
-  where
-    symbol :: Parser Char
-    symbol = oneOf "!$%&|*+-/:<=>?@^_~"
-
-parseCharacter :: Parser LispVal  -- TODO: "named" characters, eg #\newline, #\space
-parseCharacter = string "#\\" >> anyChar >>= (return . Character)
 
 parseInteger :: Parser LispVal
 parseInteger = do
@@ -85,18 +91,21 @@ parseInteger = do
 -- TODO: This will accept `.`. Is that a problem?
 -- TODO: Seems like there should be a better way to do this... `sequence`?
 -- TODO: #e / #i
-parseFloat :: Parser LispVal
-parseFloat = do
+parseReal :: Parser LispVal
+parseReal = do
   whole <- option "0" (many1 digit)
   _ <- string "."
   fractional <- option "" (many1 digit)
-  return . Float . fst . head $ readFloat (whole ++ "." ++ fractional)
+  return . Real . fst . head $ readFloat (whole ++ "." ++ fractional)
+
 
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
-        <|> parseString
+        <|> try parseBool
         <|> parseCharacter
-        <|> try parseFloat
+        <|> parseString
+
+        <|> try parseReal
         <|> parseInteger
 
 readExpr :: String -> String
