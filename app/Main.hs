@@ -12,7 +12,7 @@ data Sign = Plus | Minus
 
 data Radix = Binary | Octal | Decimal | Hex
 
-data LispVal = LispAtom String
+data LispVal = LispIdentifier String
              | LispBool Bool
              | LispCharacter Char
              | LispString String
@@ -25,25 +25,38 @@ data LispVal = LispAtom String
              deriving Show
 
 
--- an "identifier" according to https://www.scheme.com/tspl3/grammar.html
--- TODO: accept `-`, `+`, `...`
-parseAtom :: Parser LispVal
-parseAtom = do
-  first <- letter <|> symbol
+-- based on https://people.csail.mit.edu/jaffer/r5rs_9.html
+parseIdentifier :: Parser LispVal
+parseIdentifier = peculiarIdentifier <|> do
+  first <- initial
   rest <- many (letter <|> digit <|> symbol <|> char '#')
-  return $ LispAtom $ first:rest
+  return $ LispIdentifier $ first:rest
   where
+    initial :: Parser Char
+    initial = letter <|> oneOf "!$%&*/:<=>?^_~"
+
+    subsequent :: Parser Char
+    subsequent = initial <|> digit <|> oneOf "+-.@"
+
     symbol :: Parser Char
-    symbol = oneOf "!$%&|*/:<=>?@^_~"
+    symbol = oneOf "!$%&|*/:<=>?@~_^"
+
+    peculiarIdentifier :: Parser LispVal
+    peculiarIdentifier = LispIdentifier <$>
+      (string "+" <|> string "-" <|> try (string "..."))
 
 
 parseBool :: Parser LispVal
-parseBool = LispBool . \case {'t' -> True; 'f' -> False} <$>
-  (char '#' >> (char 't' <|> char 'f'))
+parseBool = LispBool <$>
+  (char '#' >> ((char 't' >> return True) <|>
+                (char 'f' >> return False)))
 
 
-parseCharacter :: Parser LispVal  -- TODO: "named" characters, eg #\newline, #\space
-parseCharacter = fmap LispCharacter $ string "#\\" >> anyChar
+parseCharacter :: Parser LispVal
+parseCharacter = LispCharacter <$>
+  (string "#\\"  >> (try (string "space" >> return ' ') <|>
+                     try (string "newline" >> return '\n') <|>
+                     anyChar))
 
 
 parseString :: Parser LispVal
@@ -81,6 +94,7 @@ parseInteger = do
   LispInteger . applySign sign . readInt radix <$>
     many1 (digit <|> oneOf "abcdef")
   where
+    readInt :: Radix -> String -> Integer
     readInt = \case
       Binary ->  readBinary
       Octal ->   fst . head . readOct
@@ -141,7 +155,7 @@ parseComplex = do
 
 -- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
-parseExpr = parseAtom
+parseExpr = parseIdentifier
         <|> try parseBool
         <|> try parseCharacter
         <|> try parseComplex
@@ -154,6 +168,11 @@ readExpr input = case parse parseExpr "[source]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ show value
 
+
+testParser :: Parser String -> String -> String
+testParser parser input = case parse parser "[test]" input of
+  Left err -> "No match: " ++ show err
+  Right value -> "Found value: " ++ show value
 
 main :: IO ()
 main = do
