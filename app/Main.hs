@@ -6,6 +6,9 @@ import System.Environment
 import Control.Monad
 import Data.Char
 import Numeric
+import Text.Pretty.Simple (pShow)
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 
 data Sign = Plus | Minus
@@ -156,6 +159,7 @@ parseComplex = do
 parseList :: Parser LispVal
 parseList = LispList <$> sepBy parseExpr spaces
 
+
 {-# ANN parseDottedList "HLint: ignore Use <$>" #-}
 parseDottedList :: Parser LispVal
 parseDottedList = do
@@ -163,6 +167,7 @@ parseDottedList = do
   spaces >> char '.' >> spaces
   tail <- parseExpr
   return $ LispDottedList head tail
+
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
@@ -184,11 +189,10 @@ parseExpr = parseIdentifier
                char ')'
                return x
 
-
 readExpr :: String -> String
 readExpr input = case parse parseExpr "[source]" input of
   Left err -> "No match: " ++ show err
-  Right value -> "Found value: " ++ show value
+  Right value -> "Found value: " ++ (T.unpack . TL.toStrict $ pShow value)
 
 
 main :: IO ()
@@ -198,10 +202,10 @@ main = do
 
 
 -- testing / debug helpers
-testParser :: Parser String -> String -> String
-testParser parser input = case parse parser "[test]" input of
+applyParser :: Parser String -> String -> String
+applyParser parser input = case parse parser "[test]" input of
   Left err -> "No match: " ++ show err
-  Right value -> "Found value: " ++ show value
+  Right value -> "Found value: " ++ (T.unpack . TL.toStrict $ pShow value)
 
 printReadExpr :: String -> IO ()
 printReadExpr input = putStrLn (readExpr input)

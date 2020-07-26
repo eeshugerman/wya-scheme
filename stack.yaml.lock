@@ -3,5 +3,26 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: pretty-simple-2.2.0.1@sha256:bc56d0b124fa076b9c4c12954ea69d3e706656bddaa98f4a5e79dd127f9e5926,3898
+    pantry-tree:
+      size: 1402
+      sha256: 316b6434b9814d272325fe962a70b4d9a3da604b6e234a5c3eec4aca91ebb8bf
+  original:
+    hackage: pretty-simple-2.2.0.1
+- completed:
+    hackage: ansi-terminal-0.10.3@sha256:e2fbcef5f980dc234c7ad8e2fa433b0e8109132c9e643bc40ea5608cd5697797,3226
+    pantry-tree:
+      size: 1461
+      sha256: 02f05d52be3ffcf36c78876629cbab80b63420672685371aea4fd10e1c4aabb6
+  original:
+    hackage: ansi-terminal-0.10.3
+- completed:
+    hackage: colour-2.3.5@sha256:b27db0a3ad40d70bdbd8510a104269f8707592e80757a1abc66a22ba25e5a42f,1801
+    pantry-tree:
+      size: 1183
+      sha256: ff0f5e24e9f669ceedfcae4d11fd6c68820bbaa2e07ab277368946e9b0f6f8a4
+  original:
+    hackage: colour-2.3.5
 snapshots: []
