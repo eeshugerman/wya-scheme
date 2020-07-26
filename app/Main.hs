@@ -153,6 +153,23 @@ parseComplex = do
   return $ LispComplex (real, imag)
 
 
+parseList :: Parser LispVal
+parseList = LispList <$> sepBy parseExpr spaces
+
+{-# ANN parseDottedList "HLint: ignore Use <$>" #-}
+parseDottedList :: Parser LispVal
+parseDottedList = do
+  head <- sepBy parseExpr spaces
+  spaces >> char '.' >> spaces
+  tail <- parseExpr
+  return $ LispDottedList head tail
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+  char '\''
+  expr <- parseExpr
+  return $ LispList [LispIdentifier "quote", expr]
+
 -- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
 parseExpr = parseIdentifier
@@ -161,6 +178,11 @@ parseExpr = parseIdentifier
         <|> try parseComplex
         <|> try parseReal
         <|> parseInteger
+        <|> parseQuoted
+        <|> do char '('
+               x <- try parseList <|> parseDottedList
+               char ')'
+               return x
 
 
 readExpr :: String -> String
@@ -169,13 +191,18 @@ readExpr input = case parse parseExpr "[source]" input of
   Right value -> "Found value: " ++ show value
 
 
+main :: IO ()
+main = do
+  (expr:_) <- getArgs
+  putStrLn (readExpr expr)
+
+
+-- testing / debug helpers
 testParser :: Parser String -> String -> String
 testParser parser input = case parse parser "[test]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ show value
 
-main :: IO ()
-main = do
-  (expr:_) <- getArgs
-  putStrLn (readExpr expr)
+printReadExpr :: String -> IO ()
+printReadExpr input = putStrLn (readExpr input)
 
