@@ -3,9 +3,9 @@
 module Main where
 import Text.ParserCombinators.Parsec
 import System.Environment
-import Control.Monad
 import Data.Char
 import Numeric
+import Data.Array
 import Text.Pretty.Simple (pShow)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -24,6 +24,7 @@ data LispVal = LispIdentifier String
              | LispReal Float
              | LispComplex (LispVal, LispVal)
              | LispList [LispVal]
+             | LispVector (Array Int LispVal)
              | LispDottedList [LispVal] LispVal
              deriving Show
 
@@ -32,7 +33,7 @@ data LispVal = LispIdentifier String
 parseIdentifier :: Parser LispVal
 parseIdentifier = peculiarIdentifier <|> do
   first <- initial
-  rest <- many (letter <|> digit <|> symbol <|> char '#')
+  rest <- many (subsequent)
   return $ LispIdentifier $ first:rest
   where
     initial :: Parser Char
@@ -40,9 +41,6 @@ parseIdentifier = peculiarIdentifier <|> do
 
     subsequent :: Parser Char
     subsequent = initial <|> digit <|> oneOf "+-.@"
-
-    symbol :: Parser Char
-    symbol = oneOf "!$%&|*/:<=>?@~_^"
 
     peculiarIdentifier :: Parser LispVal
     peculiarIdentifier = LispIdentifier <$>
@@ -163,11 +161,10 @@ parseList = LispList <$> sepBy parseExpr spaces
 {-# ANN parseDottedList "HLint: ignore Use <$>" #-}
 parseDottedList :: Parser LispVal
 parseDottedList = do
-  head <- sepBy parseExpr spaces
+  rest <- sepBy parseExpr spaces
   spaces >> char '.' >> spaces
-  tail <- parseExpr
-  return $ LispDottedList head tail
-
+  last <- parseExpr
+  return $ LispDottedList rest last
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
@@ -187,6 +184,13 @@ parseQuasiquoted = do
   expr <- parseExpr
   return $ LispList [LispIdentifier "quasiquote", expr]
 
+parseVector :: Parser LispVal
+parseVector = do
+  string "#("
+  LispList elems <- parseList
+  return $ LispVector $ listArray (0, (length elems) - 1) elems
+
+
 -- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
 parseExpr = parseIdentifier
@@ -194,14 +198,15 @@ parseExpr = parseIdentifier
         <|> try parseCharacter
         <|> try parseComplex
         <|> try parseReal
+        <|> parseVector
         <|> parseInteger
         <|> parseQuoted
         <|> parseUnquoted
         <|> parseQuasiquoted
         <|> do char '('
-               x <- try parseList <|> parseDottedList
+               elems <- try parseList <|> parseDottedList
                char ')'
-               return x
+               return elems
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "[source]" input of

@@ -24,6 +24,7 @@ dependencies:
 - parsec
 - pretty-simple
 - text
+- array
 
 library:
   source-dirs: src
@@ -36,6 +37,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    # - -Wall
     dependencies:
     - wya-scheme
 
