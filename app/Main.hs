@@ -15,7 +15,7 @@ data Sign = Plus | Minus
 
 data Radix = Binary | Octal | Decimal | Hex
 
-data LispVal = LispIdentifier String
+data LispVal = LispSymbol String
              | LispBool Bool
              | LispCharacter Char
              | LispString String
@@ -30,11 +30,11 @@ data LispVal = LispIdentifier String
 
 
 -- based on https://people.csail.mit.edu/jaffer/r5rs_9.html
-parseIdentifier :: Parser LispVal
-parseIdentifier = peculiarIdentifier <|> do
+parseSymbol :: Parser LispVal
+parseSymbol = peculiarSymbol <|> do
   first <- initial
-  rest <- many (subsequent)
-  return $ LispIdentifier $ first:rest
+  rest <- many subsequent
+  return $ LispSymbol $ first:rest
   where
     initial :: Parser Char
     initial = letter <|> oneOf "!$%&*/:<=>?^_~"
@@ -42,41 +42,42 @@ parseIdentifier = peculiarIdentifier <|> do
     subsequent :: Parser Char
     subsequent = initial <|> digit <|> oneOf "+-.@"
 
-    peculiarIdentifier :: Parser LispVal
-    peculiarIdentifier = LispIdentifier <$>
+    peculiarSymbol :: Parser LispVal
+    peculiarSymbol = LispSymbol <$>
       (string "+" <|> string "-" <|> try (string "..."))
 
 
 parseBool :: Parser LispVal
 parseBool = LispBool <$>
-  (char '#' >> ((char 't' >> return True) <|>
-                (char 'f' >> return False)))
+  try (char '#' >> ((char 't' >> return True) <|>
+                    (char 'f' >> return False)))
 
 
 parseCharacter :: Parser LispVal
 parseCharacter = LispCharacter <$>
-  (string "#\\"  >> (try (string "space" >> return ' ') <|>
-                     try (string "newline" >> return '\n') <|>
-                     anyChar))
+  (try (string "#\\")  >> ((string "space" >> return ' ') <|>
+                           (string "newline" >> return '\n') <|>
+                           anyChar))
 
 
 parseString :: Parser LispVal
 parseString = do
   char '"'
-  x <- many (escapeChar <|> noneOf "\"")
+  x <- many (try escapeChar <|> noneOf "\"")
   char '"'
   return $ LispString x
   where
     escapeChar :: Parser Char
     escapeChar = do
       char '\\'
-      x <- oneOf ['"', 'n', 'r', 't', '\\']
-      return $ case x of
-        '"'  -> '"'
-        'n'  -> '\n'
-        'r'  -> '\r'
-        't'  -> '\t'
-        '\\' -> '\\'
+      x <- anyChar
+      case x of
+        '"'  -> return '"'
+        'n'  -> return '\n'
+        'r'  -> return '\r'
+        't'  -> return '\t'
+        '\\' -> return '\\'
+        _    -> pzero
 
 
 parseSign :: Parser Sign
@@ -113,14 +114,10 @@ parseInteger = do
         'x' -> Hex
 
     readBinary :: String -> Integer
-    readBinary = sum . applyBase2 0 . reverse . stringToInts
-      where
-        applyBase2 :: Integer -> [Integer] -> [Integer]
-        applyBase2 _ [] = []
-        applyBase2 idx (x:xs) = x * (2 ^ idx) : applyBase2 (idx + 1) xs
-
-        stringToInts :: String -> [Integer]
-        stringToInts s = [read [c] | c <- s]
+    readBinary chars = let
+      digits = reverse [read [c] | c <- chars]
+      terms = zipWith (\idx digit -> digit * (2^idx)) [0..] digits
+      in sum terms
 
 
 parseRational :: Parser LispVal
@@ -132,18 +129,18 @@ parseRational = do
   return $ LispRational (applySign sign $ read numerator, read denominator)
 
 
--- TODO: This will accept `.`. Is that a problem?
 -- TODO: #e / #i
 parseReal :: Parser LispVal
 parseReal = do
   sign <- parseSign
-  whole <- option "0" (many1 digit)
+  whole <- many digit
   string "."
-  fractional <- option "" (many1 digit)
-  return . LispReal $ readFloat_ sign (whole ++ "." ++ fractional)
-  where
-    readFloat_ :: Sign -> String -> Float
-    readFloat_ sign = applySign sign . fst . head . readFloat
+  fractional <- many digit
+  if whole ++ fractional == ""
+    then pzero
+    else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
+             mag = fst $ head $ readFloat chars
+         in return $ LispReal $ applySign sign mag
 
 
 parseComplex :: Parser LispVal
@@ -168,38 +165,37 @@ parseDottedList = do
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
-  char '\''
-  expr <- parseExpr
-  return $ LispList [LispIdentifier "quote", expr]
+  expr <- char '\'' >> parseExpr
+  return $ LispList [LispSymbol "quote", expr]
 
 parseUnquoted :: Parser LispVal
 parseUnquoted = do
-  char ','
-  expr <- parseExpr
-  return $ LispList [LispIdentifier "unquote", expr]
+  expr <- char ',' >> parseExpr
+  return $ LispList [LispSymbol "unquote", expr]
 
 parseQuasiquoted :: Parser LispVal
 parseQuasiquoted = do
-  char '`'
-  expr <- parseExpr
-  return $ LispList [LispIdentifier "quasiquote", expr]
+  expr <- char '`' >> parseExpr
+  return $ LispList [LispSymbol "quasiquote", expr]
 
 parseVector :: Parser LispVal
 parseVector = do
   string "#("
   LispList elems <- parseList
-  return $ LispVector $ listArray (0, (length elems) - 1) elems
+  char ')'
+  return $ LispVector $ listArray (0, length elems - 1) elems
 
 
 -- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
-parseExpr = parseIdentifier
-        <|> try parseBool
-        <|> try parseCharacter
+parseExpr = parseSymbol
+        <|> parseCharacter
+        <|> parseBool
         <|> try parseComplex
         <|> try parseReal
+        <|> try parseInteger
         <|> parseVector
-        <|> parseInteger
+        <|> parseString
         <|> parseQuoted
         <|> parseUnquoted
         <|> parseQuasiquoted
@@ -221,8 +217,8 @@ main = do
 
 
 -- testing / debug helpers
-applyParser :: Parser String -> String -> String
-applyParser parser input = case parse parser "[test]" input of
+applyParser :: Parser LispVal -> String -> IO ()
+applyParser parser input = putStrLn $ case parse parser "[test]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ (T.unpack . TL.toStrict $ pShow value)
 
