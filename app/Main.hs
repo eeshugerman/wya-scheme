@@ -175,6 +175,18 @@ parseQuoted = do
   expr <- parseExpr
   return $ LispList [LispIdentifier "quote", expr]
 
+parseUnquoted :: Parser LispVal
+parseUnquoted = do
+  char ','
+  expr <- parseExpr
+  return $ LispList [LispIdentifier "unquote", expr]
+
+parseQuasiquoted :: Parser LispVal
+parseQuasiquoted = do
+  char '`'
+  expr <- parseExpr
+  return $ LispList [LispIdentifier "quasiquote", expr]
+
 -- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
 parseExpr = parseIdentifier
@@ -184,6 +196,8 @@ parseExpr = parseIdentifier
         <|> try parseReal
         <|> parseInteger
         <|> parseQuoted
+        <|> parseUnquoted
+        <|> parseQuasiquoted
         <|> do char '('
                x <- try parseList <|> parseDottedList
                char ')'
