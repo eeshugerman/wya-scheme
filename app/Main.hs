@@ -212,8 +212,9 @@ readExpr input = case parse parseExpr "[source]" input of
 
 main :: IO ()
 main = do
-  (expr:_) <- getArgs
-  putStrLn (readExpr expr)
+  (filepath:_) <- getArgs
+  lispCode <- readFile filepath
+  putStrLn (readExpr lispCode)
 
 
 -- testing / debug helpers
