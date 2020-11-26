@@ -29,22 +29,23 @@ data LispVal = LispSymbol String
              deriving Show
 
 
--- based on https://people.csail.mit.edu/jaffer/r5rs_9.html
 parseSymbol :: Parser LispVal
-parseSymbol = peculiarSymbol <|> do
-  first <- initial
-  rest <- many subsequent
-  return $ LispSymbol $ first:rest
+parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
   where
-    initial :: Parser Char
-    initial = letter <|> oneOf "!$%&*/:<=>?^_~"
+    peculiarSymbol :: Parser String
+    peculiarSymbol = string "+" <|> string "-" <|> try (string "...")
 
-    subsequent :: Parser Char
-    subsequent = initial <|> digit <|> oneOf "+-.@"
+    regularSymbol :: Parser String
+    regularSymbol = do
+      first <- initial
+      rest <- many subsequent
+      return $ first:rest
+      where
+        initial :: Parser Char
+        initial = letter <|> oneOf "!$%&*/:<=>?^_~"
 
-    peculiarSymbol :: Parser LispVal
-    peculiarSymbol = LispSymbol <$>
-      (string "+" <|> string "-" <|> try (string "..."))
+        subsequent :: Parser Char
+        subsequent = initial <|> digit <|> oneOf "+-.@"
 
 
 parseBool :: Parser LispVal
@@ -52,13 +53,12 @@ parseBool = LispBool <$>
   try (char '#' >> ((char 't' >> return True) <|>
                     (char 'f' >> return False)))
 
-
 parseCharacter :: Parser LispVal
-parseCharacter = LispCharacter <$>
-  (try (string "#\\")  >> ((string "space" >> return ' ') <|>
-                           (string "newline" >> return '\n') <|>
-                           anyChar))
-
+parseCharacter = let
+  spaceName = string "space" >> return ' '
+  newlineName = string "newline" >> return '\n'
+  prefix = try $ string "#\\"
+  in LispCharacter <$> (prefix >> (spaceName <|> newlineName <|> anyChar))
 
 parseString :: Parser LispVal
 parseString = do
@@ -80,9 +80,6 @@ parseString = do
         _    -> pzero
 
 
--- parseSign :: Parser Sign
--- parseSign = \case {'+' -> Plus; '-' -> Minus; _ -> error "foo"} <$> option '+' (oneOf "+-")
-
 parseSign :: Parser Sign
 parseSign = do
   sign <- option '+' (oneOf "+-")
@@ -101,8 +98,9 @@ parseInteger :: Parser LispVal
 parseInteger = do
   radix <- option Decimal parseRadix
   sign <- parseSign
-  LispInteger . applySign sign . readInt radix <$>
-    many1 (digit <|> oneOf "abcdef")
+  digits <- many1 (digit <|> oneOf "abcdef")
+  return . LispInteger . applySign sign $ readInt radix digits
+
   where
     readInt :: Radix -> String -> Integer
     readInt = \case
@@ -195,7 +193,6 @@ parseVector = do
   return $ LispVector $ listArray (0, length elems - 1) elems
 
 
--- TODO: how to not abuse `try`?
 parseExpr :: Parser LispVal
 parseExpr = parseSymbol
         <|> parseCharacter
