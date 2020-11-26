@@ -37,7 +37,8 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    # - -Wall
+    - -Wall
+    - -Wno-unused-do-bind
     dependencies:
     - wya-scheme
 

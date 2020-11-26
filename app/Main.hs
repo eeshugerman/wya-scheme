@@ -4,8 +4,8 @@ module Main where
 import Text.ParserCombinators.Parsec
 import System.Environment
 import Data.Char
-import Numeric
-import Data.Array
+import Numeric hiding (readInt)
+import Data.Array hiding (elems)
 import Text.Pretty.Simple (pShow)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -80,8 +80,16 @@ parseString = do
         _    -> pzero
 
 
+-- parseSign :: Parser Sign
+-- parseSign = \case {'+' -> Plus; '-' -> Minus; _ -> error "foo"} <$> option '+' (oneOf "+-")
+
 parseSign :: Parser Sign
-parseSign = \case {'+' -> Plus; '-' -> Minus} <$> option '+' (oneOf "+-")
+parseSign = do
+  sign <- option '+' (oneOf "+-")
+  return $ case sign of
+    '+' -> Plus
+    '-' -> Minus
+    val -> error $ "expected '+' or '-', got '" ++ [val] ++ "'"
 
 
 applySign :: (Num a) => Sign -> a -> a
@@ -105,18 +113,19 @@ parseInteger = do
 
     parseRadix :: Parser Radix
     parseRadix = do
-      _ <- char '#'
+      char '#'
       base <- oneOf "bBoOdDxX"
       return $ case toLower base of
         'b' -> Binary
         'o' -> Octal
         'd' -> Decimal
         'x' -> Hex
+        val -> error $ "expected oneOf \"bodx\", got '" ++ [val] ++ "'"
 
     readBinary :: String -> Integer
     readBinary chars = let
       digits = reverse [read [c] | c <- chars]
-      terms = zipWith (\idx digit -> digit * (2^idx)) [0..] digits
+      terms = zipWith (\idx d -> d * (2 ^ (idx::Integer))) [0..] digits
       in sum terms
 
 
@@ -160,8 +169,8 @@ parseDottedList :: Parser LispVal
 parseDottedList = do
   rest <- sepBy parseExpr spaces
   spaces >> char '.' >> spaces
-  last <- parseExpr
-  return $ LispDottedList rest last
+  end <- parseExpr
+  return $ LispDottedList rest end
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
