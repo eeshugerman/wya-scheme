@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Main where
-import Text.ParserCombinators.Parsec
+import qualified Text.ParserCombinators.Parsec as P
+import Text.ParserCombinators.Parsec ((<|>))
 import System.Environment
 import Data.Char
 import Numeric hiding (readInt)
@@ -29,60 +30,60 @@ data LispVal = LispSymbol String
              deriving Show
 
 
-parseSymbol :: Parser LispVal
+parseSymbol :: P.Parser LispVal
 parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
   where
-    peculiarSymbol :: Parser String
-    peculiarSymbol = string "+" <|> string "-" <|> try (string "...")
+    peculiarSymbol :: P.Parser String
+    peculiarSymbol = P.string "+" <|> P.string "-" <|> P.try (P.string "...")
 
-    regularSymbol :: Parser String
+    regularSymbol :: P.Parser String
     regularSymbol = do
       first <- initial
-      rest <- many subsequent
+      rest <- P.many subsequent
       return $ first:rest
       where
-        initial :: Parser Char
-        initial = letter <|> oneOf "!$%&*/:<=>?^_~"
+        initial :: P.Parser Char
+        initial = P.letter <|> P.oneOf "!$%&*/:<=>?^_~"
 
-        subsequent :: Parser Char
-        subsequent = initial <|> digit <|> oneOf "+-.@"
+        subsequent :: P.Parser Char
+        subsequent = initial <|> P.digit <|> P.oneOf "+-.@"
 
 
-parseBool :: Parser LispVal
-parseBool = LispBool <$>
-  try (char '#' >> ((char 't' >> return True) <|>
-                    (char 'f' >> return False)))
+parseBool :: P.Parser LispVal
+parseBool = LispBool <$> P.try (
+  P.char '#' >> ((P.char 't' >> return True) <|>
+                 (P.char 'f' >> return False)))
 
-parseCharacter :: Parser LispVal
+parseCharacter :: P.Parser LispVal
 parseCharacter = let
-  spaceName = string "space" >> return ' '
-  newlineName = string "newline" >> return '\n'
-  prefix = try $ string "#\\"
-  in LispCharacter <$> (prefix >> (spaceName <|> newlineName <|> anyChar))
+  spaceName = P.string "space" >> return ' '
+  newlineName = P.string "newline" >> return '\n'
+  prefix = P.try $ P.string "#\\"
+  in LispCharacter <$> (prefix >> (spaceName <|> newlineName <|> P.anyChar))
 
-parseString :: Parser LispVal
+parseString :: P.Parser LispVal
 parseString = do
-  char '"'
-  x <- many (try escapeChar <|> noneOf "\"")
-  char '"'
+  P.char '"'
+  x <- P.many (P.try escapeChar <|> P.noneOf "\"")
+  P.char '"'
   return $ LispString x
   where
-    escapeChar :: Parser Char
+    escapeChar :: P.Parser Char
     escapeChar = do
-      char '\\'
-      x <- anyChar
+      P.char '\\'
+      x <- P.anyChar
       case x of
         '"'  -> return '"'
         'n'  -> return '\n'
         'r'  -> return '\r'
         't'  -> return '\t'
         '\\' -> return '\\'
-        _    -> pzero
+        _    -> P.pzero
 
 
-parseSign :: Parser Sign
+parseSign :: P.Parser Sign
 parseSign = do
-  sign <- option '+' (oneOf "+-")
+  sign <- P.option '+' (P.oneOf "+-")
   return $ case sign of
     '+' -> Plus
     '-' -> Minus
@@ -94,11 +95,11 @@ applySign sign mag = case sign of
     Plus ->  mag
     Minus -> -mag
 
-parseInteger :: Parser LispVal
+parseInteger :: P.Parser LispVal
 parseInteger = do
-  radix <- option Decimal parseRadix
+  radix <- P.option Decimal parseRadix
   sign <- parseSign
-  digits <- many1 (digit <|> oneOf "abcdef")
+  digits <- P.many1 (P.digit <|> P.oneOf "abcdef")
   return . LispInteger . applySign sign $ readInt radix digits
 
   where
@@ -109,10 +110,10 @@ parseInteger = do
       Decimal -> read
       Hex ->     fst . head. readHex
 
-    parseRadix :: Parser Radix
+    parseRadix :: P.Parser Radix
     parseRadix = do
-      char '#'
-      base <- oneOf "bBoOdDxX"
+      P.char '#'
+      base <- P.oneOf "bBoOdDxX"
       return $ case toLower base of
         'b' -> Binary
         'o' -> Octal
@@ -127,91 +128,91 @@ parseInteger = do
       in sum terms
 
 
-parseRational :: Parser LispVal
+parseRational :: P.Parser LispVal
 parseRational = do
   sign <- parseSign
-  numerator <- many1 digit
-  char '/'
-  denominator <- many1 digit
+  numerator <- P.many1 P.digit
+  P.char '/'
+  denominator <- P.many1 P.digit
   return $ LispRational (applySign sign $ read numerator, read denominator)
 
 
 -- TODO: #e / #i
-parseReal :: Parser LispVal
+parseReal :: P.Parser LispVal
 parseReal = do
   sign <- parseSign
-  whole <- many digit
-  string "."
-  fractional <- many digit
+  whole <- P.many P.digit
+  P.string "."
+  fractional <- P.many P.digit
   if whole ++ fractional == ""
-    then pzero
+    then P.pzero
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
          in return $ LispReal $ applySign sign mag
 
 
-parseComplex :: Parser LispVal
+parseComplex :: P.Parser LispVal
 parseComplex = do
-  real <- try parseReal <|> try parseRational <|> parseInteger
-  imag <- try parseReal <|> try parseRational <|> parseInteger
-  char 'i'
+  real <- P.try parseReal <|> P.try parseRational <|> parseInteger
+  imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
+  P.char 'i'
   return $ LispComplex (real, imag)
 
 
-parseList :: Parser LispVal
-parseList = LispList <$> sepBy parseExpr spaces
+parseList :: P.Parser LispVal
+parseList = LispList <$> P.sepBy parseExpr P.spaces
 
 
 {-# ANN parseDottedList "HLint: ignore Use <$>" #-}
-parseDottedList :: Parser LispVal
+parseDottedList :: P.Parser LispVal
 parseDottedList = do
-  rest <- sepBy parseExpr spaces
-  spaces >> char '.' >> spaces
+  rest <- P.sepBy parseExpr P.spaces
+  P.spaces >> P.char '.' >> P.spaces
   end <- parseExpr
   return $ LispDottedList rest end
 
-parseQuoted :: Parser LispVal
+parseQuoted :: P.Parser LispVal
 parseQuoted = do
-  expr <- char '\'' >> parseExpr
+  expr <- P.char '\'' >> parseExpr
   return $ LispList [LispSymbol "quote", expr]
 
-parseUnquoted :: Parser LispVal
+parseUnquoted :: P.Parser LispVal
 parseUnquoted = do
-  expr <- char ',' >> parseExpr
+  expr <- P.char ',' >> parseExpr
   return $ LispList [LispSymbol "unquote", expr]
 
-parseQuasiquoted :: Parser LispVal
+parseQuasiquoted :: P.Parser LispVal
 parseQuasiquoted = do
-  expr <- char '`' >> parseExpr
+  expr <- P.char '`' >> parseExpr
   return $ LispList [LispSymbol "quasiquote", expr]
 
-parseVector :: Parser LispVal
+parseVector :: P.Parser LispVal
 parseVector = do
-  string "#("
+  P.string "#("
   LispList elems <- parseList
-  char ')'
+  P.char ')'
   return $ LispVector $ listArray (0, length elems - 1) elems
 
 
-parseExpr :: Parser LispVal
+parseExpr :: P.Parser LispVal
 parseExpr = parseSymbol
         <|> parseCharacter
         <|> parseBool
-        <|> try parseComplex
-        <|> try parseReal
-        <|> try parseInteger
+        <|> P.try parseComplex
+        <|> P.try parseReal
+        <|> P.try parseInteger
         <|> parseVector
         <|> parseString
         <|> parseQuoted
         <|> parseUnquoted
         <|> parseQuasiquoted
-        <|> do char '('
-               elems <- try parseList <|> parseDottedList
-               char ')'
+        <|> do P.char '('
+               elems <- P.try parseList <|> parseDottedList
+               P.char ')'
                return elems
 
 readExpr :: String -> String
-readExpr input = case parse parseExpr "[source]" input of
+readExpr input = case P.parse parseExpr "[source]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ (T.unpack . TL.toStrict $ pShow value)
 
@@ -224,8 +225,8 @@ main = do
 
 
 -- testing / debug helpers
-applyParser :: Parser LispVal -> String -> IO ()
-applyParser parser input = putStrLn $ case parse parser "[test]" input of
+applyParser :: P.Parser LispVal -> String -> IO ()
+applyParser parser input = putStrLn $ case P.parse parser "[test]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ (T.unpack . TL.toStrict $ pShow value)
 
