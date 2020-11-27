@@ -96,7 +96,7 @@ applySign sign mag = case sign of
     Minus -> -mag
 
 parseInteger :: P.Parser LispVal
-parseInteger = do
+parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
   digits <- P.many1 (P.digit <|> P.oneOf "abcdef")
@@ -129,7 +129,7 @@ parseInteger = do
 
 
 parseRational :: P.Parser LispVal
-parseRational = do
+parseRational = P.try $ do
   sign <- parseSign
   numerator <- P.many1 P.digit
   P.char '/'
@@ -139,7 +139,7 @@ parseRational = do
 
 -- TODO: #e / #i
 parseReal :: P.Parser LispVal
-parseReal = do
+parseReal = P.try $ do
   sign <- parseSign
   whole <- P.many P.digit
   P.string "."
@@ -152,7 +152,7 @@ parseReal = do
 
 
 parseComplex :: P.Parser LispVal
-parseComplex = do
+parseComplex = P.try $ do
   real <- P.try parseReal <|> P.try parseRational <|> parseInteger
   imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
   P.char 'i'
@@ -198,9 +198,10 @@ parseExpr :: P.Parser LispVal
 parseExpr = parseSymbol
         <|> parseCharacter
         <|> parseBool
-        <|> P.try parseComplex
-        <|> P.try parseReal
-        <|> P.try parseInteger
+        <|> parseReal
+        <|> parseRational
+        <|> parseComplex
+        <|> parseInteger
         <|> parseVector
         <|> parseString
         <|> parseQuoted
