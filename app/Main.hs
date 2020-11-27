@@ -91,9 +91,7 @@ parseSign = do
 
 
 applySign :: (Num a) => Sign -> a -> a
-applySign sign mag = case sign of
-    Plus ->  mag
-    Minus -> -mag
+applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
 parseInteger :: P.Parser LispVal
 parseInteger = P.try $ do
@@ -158,18 +156,22 @@ parseComplex = P.try $ do
   P.char 'i'
   return $ LispComplex (real, imag)
 
+parseLispVals :: P.Parser [LispVal]
+parseLispVals = parseExpr `P.endBy` P.spaces
 
-parseList :: P.Parser LispVal
-parseList = LispList <$> P.sepBy parseExpr P.spaces
+parseMaybeDottedListEnd :: P.Parser (Maybe LispVal)
+parseMaybeDottedListEnd =
+  P.optionMaybe (P.char '.' >> P.skipMany1 P.space >> parseExpr)
 
-
-{-# ANN parseDottedList "HLint: ignore Use <$>" #-}
-parseDottedList :: P.Parser LispVal
-parseDottedList = do
-  rest <- P.sepBy parseExpr P.spaces
-  P.spaces >> P.char '.' >> P.spaces
-  end <- parseExpr
-  return $ LispDottedList rest end
+parseListOrDottedList :: P.Parser LispVal
+parseListOrDottedList = do
+  P.char '('
+  beginning <- parseLispVals
+  maybeEnd <- parseMaybeDottedListEnd
+  P.char ')'
+  return $ case maybeEnd of
+    Nothing -> LispList beginning
+    Just end -> LispDottedList beginning end
 
 parseQuoted :: P.Parser LispVal
 parseQuoted = do
@@ -189,7 +191,7 @@ parseQuasiquoted = do
 parseVector :: P.Parser LispVal
 parseVector = do
   P.string "#("
-  LispList elems <- parseList
+  elems <- parseLispVals
   P.char ')'
   return $ LispVector $ listArray (0, length elems - 1) elems
 
@@ -207,10 +209,7 @@ parseExpr = parseSymbol
         <|> parseQuoted
         <|> parseUnquoted
         <|> parseQuasiquoted
-        <|> do P.char '('
-               elems <- P.try parseList <|> parseDottedList
-               P.char ')'
-               return elems
+        <|> parseListOrDottedList
 
 readExpr :: String -> String
 readExpr input = case P.parse parseExpr "[source]" input of
@@ -223,7 +222,6 @@ main = do
   (filepath:_) <- getArgs
   lispCode <- readFile filepath
   putStrLn (readExpr lispCode)
-
 
 -- testing / debug helpers
 applyParser :: P.Parser LispVal -> String -> IO ()
