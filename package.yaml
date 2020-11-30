@@ -25,9 +25,7 @@ dependencies:
 - pretty-simple
 - text
 - array
-
-library:
-  source-dirs: src
+- HUnit
 
 executables:
   wya-scheme-exe:
@@ -39,16 +37,14 @@ executables:
     - -with-rtsopts=-N
     - -Wall
     - -Wno-unused-do-bind
-    dependencies:
-    - wya-scheme
 
 tests:
-  wya-scheme-test:
-    main:                Spec.hs
-    source-dirs:         test
+  tests:
+    main:                Tests.hs
+    source-dirs:
+      - app
+      - test
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    dependencies:
-    - wya-scheme
