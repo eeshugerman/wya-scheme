@@ -14,6 +14,7 @@ import Types
   , LispVal(..)
   )
 
+-- based on https://www.scheme.com/tspl4/grammar.html#Symbols
 parseSymbol :: P.Parser LispVal
 parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
   where
