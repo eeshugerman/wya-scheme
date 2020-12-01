@@ -10,6 +10,7 @@ data Sign = Plus | Minus
 
 data Radix = Binary | Octal | Decimal | Hex
 
+-- TODO: lose the tuples
 data LispVal = LispSymbol String
              | LispBool Bool
              | LispCharacter Char
