@@ -28,11 +28,17 @@ apply parser input = case Parsec.parse parser"[test]" input of
   Left err -> error ("No match: " ++ show err)
   Right value -> value
 
-symbolTests = TestList
-  [ TestCase $ assertEqual "" (apply LP.parseSymbol "foo") (LispSymbol "foo")
-  , TestCase $ assertEqual "" (apply LP.parseSymbol "...") (LispSymbol "...")
-  , TestCase $ assertEqual "" (apply LP.parseSymbol "+")   (LispSymbol "+")
-  , TestCase $ assertEqual "" (apply LP.parseSymbol "-")   (LispSymbol "-")
+testListFactory parser constructor cases = TestList $
+  [ TestCase $ assertEqual "" (apply parser a) (constructor b)
+  | (a, b) <- cases ]
+
+symbolTests = testListFactory LP.parseSymbol LispSymbol
+  [ ("foo",       "foo")
+  , ("...",       "...")
+  , ("+",         "+")
+  , ("-",         "-")
+  , ("asdf1",     "asdf1")
+  , ("foo->bar",  "foo->bar")
   ]
 
 boolTests = TestList
