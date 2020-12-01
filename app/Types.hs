@@ -10,15 +10,14 @@ data Sign = Plus | Minus
 
 data Radix = Binary | Octal | Decimal | Hex
 
--- TODO: lose the tuples
 data LispVal = LispSymbol String
              | LispBool Bool
              | LispCharacter Char
              | LispString String
              | LispInteger Integer
-             | LispRational (Integer, Integer)
+             | LispRational Integer Integer
              | LispReal Float
-             | LispComplex (LispVal, LispVal)
+             | LispComplex LispVal LispVal
              | LispList [LispVal]
              | LispVector (Array Int LispVal)
              | LispDottedList [LispVal] LispVal

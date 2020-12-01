@@ -116,7 +116,7 @@ parseRational = P.try $ do
   numerator <- P.many1 P.digit
   P.char '/'
   denominator <- P.many1 P.digit
-  return $ LispRational (applySign sign $ read numerator, read denominator)
+  return $ LispRational (applySign sign $ read numerator) (read denominator)
 
 
 -- TODO: #e / #i
@@ -138,7 +138,7 @@ parseComplex = P.try $ do
   real <- P.try parseReal <|> P.try parseRational <|> parseInteger
   imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
   P.char 'i'
-  return $ LispComplex (real, imag)
+  return $ LispComplex real imag
 
 parseLispVals :: P.Parser [LispVal]
 parseLispVals = parseExpr `P.endBy` P.spaces
