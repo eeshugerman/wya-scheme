@@ -26,6 +26,7 @@ dependencies:
 - text
 - array
 - HUnit
+- raw-strings-qq
 
 executables:
   wya-scheme-exe:

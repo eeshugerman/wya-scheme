@@ -1,7 +1,10 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Main where
 
 import Test.HUnit
 import qualified Text.ParserCombinators.Parsec as Parsec
+import Text.RawString.QQ
 
 import Types (LispVal(..))
 import qualified Parser as LP
@@ -32,6 +35,7 @@ testListFactory parser constructor cases = TestList $
   [ TestCase $ assertEqual "" (apply parser a) (constructor b)
   | (a, b) <- cases ]
 
+
 symbolTests = testListFactory LP.parseSymbol LispSymbol
   [ ("foo",       "foo")
   , ("...",       "...")
@@ -41,14 +45,27 @@ symbolTests = testListFactory LP.parseSymbol LispSymbol
   , ("foo->bar",  "foo->bar")
   ]
 
-boolTests = TestList
-  [ TestCase $ assertEqual "" (apply LP.parseBool "#t") (LispBool True)
-  , TestCase $ assertEqual "" (apply LP.parseBool "#f") (LispBool False)
+boolTests = testListFactory LP.parseBool LispBool
+  [ ("#t", True)
+  , ("#f", False)]
+
+charTests = testListFactory LP.parseCharacter LispCharacter
+  [ ([r|#\a|],            'a')
+  , ([r|#\A|],            'A')
+  , ([r|#\(|],            '(')
+  , ([r|#\f|],            'f')
+  , ([r|#\t|],            't')
+  , ([r|#\1|],            '1')
+  , ([r|#\\|],            '\\')
+  , ([r|#\#|],            '#')
+  , ([r|#\space|],        ' ')
+  , ([r|#\newline|],      '\n')
   ]
 
 tests = TestList
   [ TestLabel "bool tests"   boolTests
   , TestLabel "symbol tests" symbolTests
+  , TestLabel "char tests"   charTests
   ]
 
 main = do runTestTTAndExit tests
