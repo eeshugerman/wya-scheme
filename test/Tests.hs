@@ -35,15 +35,15 @@ boolTests = testFactory LP.parseBool
   , ("#f", LispBool False)]
 
 charTests = testFactory LP.parseCharacter
-  [ ([r|#\a|],            LispCharacter 'a' )
-  , ([r|#\A|],            LispCharacter 'A' )
-  , ([r|#\(|],            LispCharacter '(' )
-  , ([r|#\f|],            LispCharacter 'f' )
-  , ([r|#\t|],            LispCharacter 't' )
-  , ([r|#\1|],            LispCharacter '1' )
+  [ ([r|#\a|],            LispCharacter 'a')
+  , ([r|#\A|],            LispCharacter 'A')
+  , ([r|#\(|],            LispCharacter '(')
+  , ([r|#\f|],            LispCharacter 'f')
+  , ([r|#\t|],            LispCharacter 't')
+  , ([r|#\1|],            LispCharacter '1')
   , ([r|#\\|],            LispCharacter '\\')
-  , ([r|#\#|],            LispCharacter '#' )
-  , ([r|#\space|],        LispCharacter ' ' )
+  , ([r|#\#|],            LispCharacter '#')
+  , ([r|#\space|],        LispCharacter ' ')
   , ([r|#\newline|],      LispCharacter '\n')
   ]
 
@@ -73,14 +73,17 @@ integerTests = testFactory LP.parseInteger
   , ("1",      LispInteger 1)
   , ("01",     LispInteger 1)
   , ("123",    LispInteger 123)
+
   , ("-0",     LispInteger 0)
   , ("-1",     LispInteger (-1))
   , ("-01",    LispInteger (-1))
   , ("-123",   LispInteger (-123))
+
   , ("#d123",  LispInteger 123)
   , ("#b111",  LispInteger 7)
   , ("#o11",   LispInteger 9)
   , ("#x11",   LispInteger 17)
+
   , ("#D123",  LispInteger 123)
   , ("#B111",  LispInteger 7)
   , ("#O11",   LispInteger 9)
@@ -91,6 +94,7 @@ rationalTests = testFactory LP.parseRational
   [ ("123/123",  LispRational 123 123)
   , ("1/123",    LispRational 1 123)
   , ("0/123",    LispRational 0 123)
+
   , ("-123/123", LispRational (-123) 123)
   , ("-1/123",   LispRational (-1) 123)
   , ("-0/123",   LispRational 0 123)
@@ -102,11 +106,32 @@ realTests = testFactory LP.parseReal
   , ("123.0",    LispReal 123)
   , (".123",     LispReal 0.123)
   , ("0.123",    LispReal 0.123)
+
   , ("-123.123", LispReal (-123.123))
   , ("-123.",    LispReal (-123))
   , ("-123.0",   LispReal (-123))
   , ("-.123",    LispReal (-0.123))
   , ("-0.123",   LispReal (-0.123))
+  ]
+
+complexTests = testFactory LP.parseComplex
+  [ ("1+1i",      LispComplex (LispInteger 1)       (LispInteger 1))
+  , ("1.1+1.1i",  LispComplex (LispReal 1.1)        (LispReal 1.1))
+  , (".1+.1i",    LispComplex (LispReal 0.1)        (LispReal 0.1))
+  , ("1/2+.1i",   LispComplex (LispRational 1 2)    (LispReal 0.1))
+  , (".1+1/2i",   LispComplex (LispReal 0.1)        (LispRational 1 2))
+
+  , ("-1+1i",     LispComplex (LispInteger (-1))    (LispInteger 1))
+  , ("-1.1+1.1i", LispComplex (LispReal (-1.1))     (LispReal 1.1))
+  , ("-.1+.1i",   LispComplex (LispReal (-0.1))     (LispReal 0.1))
+  , ("-1/2+.1i",  LispComplex (LispRational (-1) 2) (LispReal 0.1))
+  , ("-.1+1/2i",  LispComplex (LispReal (-0.1))     (LispRational 1 2))
+
+  , ("1-1i",      LispComplex (LispInteger 1)       (LispInteger (-1)))
+  , ("1.1-1.1i",  LispComplex (LispReal 1.1)        (LispReal (-1.1)))
+  , (".1-.1i",    LispComplex (LispReal 0.1)        (LispReal (-0.1)))
+  , ("1/2-.1i",   LispComplex (LispRational 1 2)    (LispReal (-0.1)))
+  , (".1-1/2i",   LispComplex (LispReal 0.1)        (LispRational (-1) 2))
   ]
 
 
@@ -118,6 +143,7 @@ tests = TestList
   , TestLabel  "integer tests"   integerTests
   , TestLabel  "rational tests"  rationalTests
   , TestLabel  "real tests"      realTests
+  , TestLabel  "complex tests"   complexTests
   ]
 
 main = do runTestTTAndExit tests
