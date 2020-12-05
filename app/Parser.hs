@@ -35,9 +35,9 @@ parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
 
 
 parseBool :: P.Parser LispVal
-parseBool = LispBool <$> P.try (
-  P.char '#' >> ((P.char 't' >> return True) <|>
-                 (P.char 'f' >> return False)))
+parseBool = LispBool <$>
+  P.try (P.char '#' >> ((P.char 't' >> return True) <|>
+                        (P.char 'f' >> return False)))
 
 parseCharacter :: P.Parser LispVal
 parseCharacter = let
@@ -128,7 +128,7 @@ parseReal = P.try $ do
   P.string "."
   fractional <- P.many P.digit
   if whole ++ fractional == ""
-    then P.pzero
+    then P.pzero   -- do a fail
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
          in return $ LispReal $ applySign sign mag
@@ -142,6 +142,7 @@ parseComplex = P.try $ do
   return $ LispComplex real imag
 
 parseLispVals :: P.Parser [LispVal]
+-- endBy is like sepBy except if there's seperator at the end it will be consumed
 parseLispVals = parseExpr `P.endBy` P.spaces
 
 parseMaybeDottedListEnd :: P.Parser (Maybe LispVal)
