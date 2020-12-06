@@ -8,11 +8,12 @@ import Text.RawString.QQ
 
 import Types (LispVal(..))
 import qualified Parser as LP
+import Data.Array (listArray)
 
 
 apply :: Parsec.Parser LispVal -> String -> LispVal
 apply parser input = case Parsec.parse parser"[test]" input of
-  Left err -> error ("No match: " ++ show err)
+  Left err -> error $ show err
   Right value -> value
 
 testFactory :: Parsec.Parser LispVal -> [(String, LispVal)] -> Test
@@ -177,11 +178,23 @@ testDottedList = testFactory LP.parseListOrDottedList
   , ("(1 . (2 . 3))" ,    LispDottedList [LispInteger 1]
                                          (LispDottedList [LispInteger 2]
                                                          (LispInteger 3)))
-  , ("(1 . (2 . 3/4))",  LispDottedList [LispInteger 1]
+  , ("(1 . (2 . 3/4))",   LispDottedList [LispInteger 1]
                                          (LispDottedList [LispInteger 2]
                                                          (LispRational 3 4)))
   ]
 
+makeVector :: [LispVal] -> LispVal
+makeVector elems = LispVector $ listArray (0, length elems - 1) elems
+
+testVector = testFactory LP.parseVector
+  [ ("#(1 2)",  makeVector [LispInteger 1, LispInteger 2])
+  , ("#(1)",    makeVector [LispInteger 1])
+  , ("#()",     makeVector [])
+  , ("#(#t 0)", makeVector [LispBool True, LispInteger 0])
+
+  , ("#(#(1 2) (3 xyz))", makeVector [ makeVector [LispInteger 1, LispInteger 2]
+                                   , LispList [LispInteger 3, LispSymbol "xyz"]])
+  ]
 
 tests = TestLabel "PARSE" $ TestList
   [ TestLabel  "BOOL"        boolTests
@@ -194,6 +207,7 @@ tests = TestLabel "PARSE" $ TestList
   , TestLabel  "COMPLEX"     complexTests
   , TestLabel  "LIST"        listTests
   , TestLabel  "DOTTED LIST" testDottedList
+  , TestLabel  "TEST VECTOR" testVector
   ]
 
 main = do runTestTTAndExit tests
