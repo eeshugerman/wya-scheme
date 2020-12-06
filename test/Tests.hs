@@ -46,6 +46,7 @@ charTests = testFactory LP.parseCharacter
   , ([r|#\#|],            LispCharacter '#')
   , ([r|#\space|],        LispCharacter ' ')
   , ([r|#\newline|],      LispCharacter '\n')
+  , ([r|#\tab|],          LispCharacter '\t')
   ]
 
 stringTests = testFactory LP.parseString

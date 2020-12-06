@@ -41,10 +41,14 @@ parseBool = LispBool <$>
 
 parseCharacter :: P.Parser LispVal
 parseCharacter = let
-  spaceName = P.string "space" >> return ' '
-  newlineName = P.string "newline" >> return '\n'
   prefix = P.try $ P.string "#\\"
-  in LispCharacter <$> (prefix >> (spaceName <|> newlineName <|> P.anyChar))
+  namedChar name val =  P.try $ P.string name >> return val
+  charName =  namedChar "space"   ' '
+          <|> namedChar "newline" '\n'
+          <|> namedChar "tab"     '\t'
+          <|> P.anyChar
+  in LispCharacter <$> (prefix >> charName)
+
 
 parseString :: P.Parser LispVal
 parseString = do
