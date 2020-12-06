@@ -1,4 +1,3 @@
-
 {-# LANGUAGE LambdaCase #-}
 
 module Parser where
@@ -13,6 +12,8 @@ import Types
   , Radix(..)
   , LispVal(..)
   )
+
+-- TODO: sort out naming convention -- what gets parse/read// prefix?
 
 -- based on https://www.scheme.com/tspl4/grammar.html#Symbols
 parseSymbol :: P.Parser LispVal
@@ -82,13 +83,6 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
-allowedDigits :: Radix -> P.Parser Char
-allowedDigits radix = case radix of
-  Binary ->  P.oneOf "01"
-  Octal ->   P.oneOf "01234567"
-  Decimal -> P.oneOf "0123456789"
-  Hex ->     P.oneOf "0123456789abcdefABCDEF"
-
 parseInteger :: P.Parser LispVal
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
@@ -119,6 +113,13 @@ parseInteger = P.try $ do
       digits = reverse [read [c] | c <- chars]
       terms = zipWith (\idx d -> d * (2 ^ (idx::Integer))) [0..] digits
       in sum terms
+
+    allowedDigits :: Radix -> P.Parser Char
+    allowedDigits = \case
+      Binary ->  P.oneOf "01"
+      Octal ->   P.oneOf "01234567"
+      Decimal -> P.oneOf "0123456789"
+      Hex ->     P.oneOf "0123456789abcdefABCDEF"
 
 
 parseRational :: P.Parser LispVal

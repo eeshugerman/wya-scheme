@@ -22,22 +22,27 @@ testFactory parser casePairs = TestList $
   | (a, b) <- casePairs ]
 
 
+symbolTests :: Test
 symbolTests = testFactory LP.parseSymbol
   [ ("foo",       LispSymbol "foo")
   , ("...",       LispSymbol "...")
   , ("+",         LispSymbol "+")
   , ("-",         LispSymbol "-")
   , ("asdf1",     LispSymbol "asdf1")
+  , ("foo-bar",   LispSymbol "foo-bar")
   , ("foo->bar",  LispSymbol "foo->bar")
   ]
 
+boolTests :: Test
 boolTests = testFactory LP.parseBool
   [ ("#t", LispBool True)
-  , ("#f", LispBool False)]
+  , ("#f", LispBool False)
+  ]
 
+charTests :: Test
 charTests =
-  let printingChars = map
-        (\c -> ("#\\" ++ [c], LispCharacter c)) $
+  let printingChars =
+        map (\c -> ("#\\" ++ [c], LispCharacter c)) $
         concat [ ['a'..'z']
                , ['A'..'Z']
                , map (head . show) [0..9]
@@ -51,6 +56,7 @@ charTests =
   in testFactory LP.parseCharacter (printingChars ++ otherChars)
 
 
+stringTests :: Test
 stringTests = testFactory LP.parseString
   [ ([r|"foo"|],       LispString "foo")
   , ([r|"123"|],       LispString "123")
@@ -72,6 +78,7 @@ stringTests = testFactory LP.parseString
   , ([r|"a\\b"|],      LispString "a\\b")
   ]
 
+integerTests :: Test
 integerTests = testFactory LP.parseInteger
   [ ("0",      LispInteger 0)
   , ("1",      LispInteger 1)
@@ -94,6 +101,7 @@ integerTests = testFactory LP.parseInteger
   , ("#X11",   LispInteger 17)
   ]
 
+rationalTests :: Test
 rationalTests = testFactory LP.parseRational
   [ ("123/123",  LispRational 123 123)
   , ("1/123",    LispRational 1 123)
@@ -104,6 +112,7 @@ rationalTests = testFactory LP.parseRational
   , ("-0/123",   LispRational 0 123)
   ]
 
+realTests :: Test
 realTests = testFactory LP.parseReal
   [ ("123.123",  LispReal 123.123)
   , ("123.",     LispReal 123)
@@ -118,9 +127,11 @@ realTests = testFactory LP.parseReal
   , ("-0.123",   LispReal (-0.123))
   ]
 
+-- | left-associative version of `$`
 ($<) :: (a -> b) -> a -> b
 ($<) = ($)
 
+complexTests :: Test
 complexTests = testFactory LP.parseComplex
   [ ("1+1i",      LispComplex $< LispInteger 1    $< LispInteger 1)
   , ("1.1+1.1i",  LispComplex $< LispReal 1.1     $< LispReal 1.1)
@@ -141,6 +152,7 @@ complexTests = testFactory LP.parseComplex
   , (".1-1/2i",   LispComplex $< LispReal 0.1     $< LispRational (-1) 2)
   ]
 
+listTests :: Test
 listTests = testFactory LP.parseListOrDottedList
   [ ("(1 2 3)",           LispList [LispInteger 1, LispInteger 2, LispInteger 3])
   , ("()",                LispList [])
@@ -167,7 +179,8 @@ listTests = testFactory LP.parseListOrDottedList
     )
   ]
 
-testDottedList = testFactory LP.parseListOrDottedList
+dottedListTests :: Test
+dottedListTests = testFactory LP.parseListOrDottedList
   [ ("(1 . 2)",           LispDottedList [LispInteger 1]  (LispInteger 2))
 
   , ("(1 . .2)",          LispDottedList [LispInteger 1]  (LispReal 0.2))
@@ -195,7 +208,8 @@ testDottedList = testFactory LP.parseListOrDottedList
 makeVector :: [LispVal] -> LispVal
 makeVector elems = LispVector $ listArray (0, length elems - 1) elems
 
-testVector = testFactory LP.parseVector
+vectorTests :: Test
+vectorTests = testFactory LP.parseVector
   [ ("#(1 2)",  makeVector [LispInteger 1, LispInteger 2])
   , ("#(1)",    makeVector [LispInteger 1])
   , ("#()",     makeVector [])
@@ -205,7 +219,8 @@ testVector = testFactory LP.parseVector
                                      , LispList [LispInteger 3, LispSymbol "xyz"]])
   ]
 
-testQuoted = testFactory LP.parseQuoted
+quotedTests :: Test
+quotedTests = testFactory LP.parseQuoted
   [ ("'foo",         LispList [LispSymbol "quote", LispSymbol "foo"])
 
   , ("'(1 2)",       LispList [ LispSymbol "quote"
@@ -220,7 +235,8 @@ testQuoted = testFactory LP.parseQuoted
                               ])
   ]
 
-testQuasiquoted = testFactory LP.parseQuasiquoted
+quasiquotedTests :: Test
+quasiquotedTests = testFactory LP.parseQuasiquoted
   [ ("`foo",           LispList [LispSymbol "quasiquote", LispSymbol "foo"])
 
   , ("`(1 2)",         LispList [ LispSymbol "quasiquote"
@@ -240,7 +256,8 @@ testQuasiquoted = testFactory LP.parseQuasiquoted
                               ])
   ]
 
-testUnquoted = testFactory LP.parseUnquoted
+unquotedTests :: Test
+unquotedTests = testFactory LP.parseUnquoted
   [ (",foo",        LispList [LispSymbol "unquote", LispSymbol "foo"])
   , (",1",          LispList [LispSymbol "unquote", LispInteger 1])
   , (",()",         LispList [LispSymbol "unquote", LispList []])
@@ -259,22 +276,29 @@ testUnquoted = testFactory LP.parseUnquoted
                              ])
   ]
 
--- exprTests = testFactory LP.parseExpr
---   [ ("foo",             LispSymbol "foo")
---   , ("#t",              LispBool True)
---   , ("#f",              LispBool False)
---   , ("#b1",             LispInteger 1)
---   , ("#o1",             LispInteger 1)
---   , ("#d1",             LispInteger 1)
---   , ("#x1",             LispInteger 1)
---   , ([r|#\a|],          LispCharacter 'a')
---   , ([r|#\b|],          LispCharacter 'b')
---   , ([r|#\c|],          LispCharacter 'c')
---   , ([r|#\x|],          LispCharacter 'x')
---   , ([r|#\y|],          LispCharacter 'y')
---   , ([r|#\z|],          LispCharacter 'z')
---   ]
+exprTests :: Test
+exprTests = testFactory LP.parseExpr
+  [ ("foo",             LispSymbol "foo")
+  , ("#t",              LispBool True)
+  , ("#f",              LispBool False)
+  , ("1",               LispInteger 1)
+  , ("#b1",             LispInteger 1)
+  , ("#o1",             LispInteger 1)
+  , ("#d1",             LispInteger 1)
+  , ("#x1",             LispInteger 1)
+  , ("#(foo)",          makeVector [LispSymbol "foo"])
+  , ("(foo)",           LispList [LispSymbol "foo"])
+  , ("(foo . bar)",     LispDottedList $< [LispSymbol "foo"] $< LispSymbol "bar")
+  , ([r|#\a|],          LispCharacter 'a')
+  , ([r|#\b|],          LispCharacter 'b')
+  , ([r|#\c|],          LispCharacter 'c')
+  , ([r|#\x|],          LispCharacter 'x')
+  , ([r|#\y|],          LispCharacter 'y')
+  , ([r|#\z|],          LispCharacter 'z')
+  , ([r|"foo"|],        LispString "foo" )
+  ]
 
+tests :: Test
 tests = TestLabel "PARSE" $ TestList
   [ TestLabel  "BOOL"        boolTests
   , TestLabel  "SYMBOL"      symbolTests
@@ -285,11 +309,12 @@ tests = TestLabel "PARSE" $ TestList
   , TestLabel  "REAL"        realTests
   , TestLabel  "COMPLEX"     complexTests
   , TestLabel  "LIST"        listTests
-  , TestLabel  "DOTTED LIST" testDottedList
-  , TestLabel  "VECTOR"      testVector
-  , TestLabel  "QUOTED"      testQuoted
-  , TestLabel  "QUASIQUOTED" testQuasiquoted
-  , TestLabel  "UNQUOTED"    testUnquoted
+  , TestLabel  "DOTTED LIST" dottedListTests
+  , TestLabel  "VECTOR"      vectorTests
+  , TestLabel  "QUOTED"      quotedTests
+  , TestLabel  "QUASIQUOTED" quasiquotedTests
+  , TestLabel  "UNQUOTED"    unquotedTests
+  , TestLabel  "EXPR"        exprTests
   ]
 
 main = do runTestTTAndExit tests
