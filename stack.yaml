@@ -1,9 +1,1 @@
-resolver: ghc-8.8.2
-
-extra-deps:
-  - pretty-simple-2.2.0.1
-  - ansi-terminal-0.10.3
-  - colour-2.3.5
-  - call-stack-0.2.0
-  - HUnit-1.6.1.0
-  - raw-strings-qq-1.1
+resolver: lts-16.24

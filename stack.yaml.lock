@@ -3,47 +3,10 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
+packages: []
+snapshots:
 - completed:
-    hackage: pretty-simple-2.2.0.1@sha256:bc56d0b124fa076b9c4c12954ea69d3e706656bddaa98f4a5e79dd127f9e5926,3898
-    pantry-tree:
-      size: 1402
-      sha256: 316b6434b9814d272325fe962a70b4d9a3da604b6e234a5c3eec4aca91ebb8bf
-  original:
-    hackage: pretty-simple-2.2.0.1
-- completed:
-    hackage: ansi-terminal-0.10.3@sha256:e2fbcef5f980dc234c7ad8e2fa433b0e8109132c9e643bc40ea5608cd5697797,3226
-    pantry-tree:
-      size: 1461
-      sha256: 02f05d52be3ffcf36c78876629cbab80b63420672685371aea4fd10e1c4aabb6
-  original:
-    hackage: ansi-terminal-0.10.3
-- completed:
-    hackage: colour-2.3.5@sha256:b27db0a3ad40d70bdbd8510a104269f8707592e80757a1abc66a22ba25e5a42f,1801
-    pantry-tree:
-      size: 1183
-      sha256: ff0f5e24e9f669ceedfcae4d11fd6c68820bbaa2e07ab277368946e9b0f6f8a4
-  original:
-    hackage: colour-2.3.5
-- completed:
-    hackage: call-stack-0.2.0@sha256:5ce796b78d5f964468ec6fe0717b4e7d0430817f37370c47b3e6b38e345b6643,1202
-    pantry-tree:
-      size: 500
-      sha256: 30cc02f50a7f660db6b5c4218b4021cd78cae90b135d893d55f32a1c8b1e1c08
-  original:
-    hackage: call-stack-0.2.0
-- completed:
-    hackage: HUnit-1.6.1.0@sha256:62af6d70183d93944b98a8d9cb2ba4484b91303f74ebbb94425f7389d418c344,1572
-    pantry-tree:
-      size: 878
-      sha256: c42729ab00656f53d6a1114cf498574c62a8c595fa3d877639b5179a70dc6c8d
-  original:
-    hackage: HUnit-1.6.1.0
-- completed:
-    hackage: raw-strings-qq-1.1@sha256:3ea0f14f036649e3576749aef0db4dd0b1102c5331f2e0e2551250e2030ce669,1467
-    pantry-tree:
-      size: 379
-      sha256: 473e62ea5320c8734f66049e48b308dd0ab197c6d3071c8ca1a828b05b7536ae
-  original:
-    hackage: raw-strings-qq-1.1
-snapshots: []
+    size: 532835
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/24.yaml
+    sha256: cf2b52420b2262fe9cf0f6744929120131abd6675b1c3fb2d8b155a47f80d103
+  original: lts-16.24
