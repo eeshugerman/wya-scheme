@@ -78,13 +78,19 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
+allowedDigits :: Radix -> P.Parser Char
+allowedDigits radix = case radix of
+  Binary ->  P.oneOf "01"
+  Octal ->   P.oneOf "01234567"
+  Decimal -> P.oneOf "0123456789"
+  Hex ->     P.oneOf "0123456789abcdefABCDEF"
+
 parseInteger :: P.Parser LispVal
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
-  digits <- P.many1 (P.digit <|> P.oneOf "abcdef")
+  digits <- P.many1 $ allowedDigits radix
   return . LispInteger . applySign sign $ readInt radix digits
-
   where
     readInt :: Radix -> String -> Integer
     readInt = \case
@@ -183,13 +189,13 @@ parseVector = do
 
 
 parseExpr :: P.Parser LispVal
-parseExpr = parseSymbol
-        <|> parseCharacter
+parseExpr = parseCharacter
         <|> parseBool
         <|> parseReal
         <|> parseRational
         <|> parseComplex
         <|> parseInteger
+        <|> parseSymbol
         <|> parseVector
         <|> parseString
         <|> parseQuoted

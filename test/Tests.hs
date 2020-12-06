@@ -134,16 +134,43 @@ complexTests = testFactory LP.parseComplex
   , (".1-1/2i",   LispComplex (LispReal 0.1)        (LispRational (-1) 2))
   ]
 
+listTests = testFactory LP.parseListOrDottedList
+  [ ("(1 2 3)",           LispList [LispInteger 1, LispInteger 2, LispInteger 3])
+  , ("()",                LispList [])
+  , ("(1)",               LispList [LispInteger 1])
+  , ("(.1 2/3)",          LispList [LispReal 0.1, LispRational 2 3])
 
-tests = TestList
-  [ TestLabel  "bool tests"      boolTests
-  , TestLabel  "symbol tests"    symbolTests
-  , TestLabel  "char tests"      charTests
-  , TestLabel  "string tests"    stringTests
-  , TestLabel  "integer tests"   integerTests
-  , TestLabel  "rational tests"  rationalTests
-  , TestLabel  "real tests"      realTests
-  , TestLabel  "complex tests"   complexTests
+  , ([r|("foo")|],        LispList [LispString "foo"])
+  , ([r|("bar" "baz")|],  LispList [LispString "bar", LispString "baz"])
+
+  , ("(foo)",             LispList [LispSymbol "foo"])
+  , ("(bar baz)",         LispList [LispSymbol "bar", LispSymbol "baz"])
+
+  , ( "(-1 (2 3) 4)" ,    LispList [ LispInteger (-1)
+                                   , LispList [LispInteger 2, LispInteger 3]
+                                   , LispInteger 4
+                                   ]
+    )
+
+  , ( [r|("asdf" (-2/3 #t) #\space)|]
+    , LispList [ LispString "asdf"
+               , LispList [LispRational (-2) 3 , LispBool True]
+               , LispCharacter ' '
+               ]
+    )
+  ]
+
+
+tests = TestLabel "PARSE" $ TestList
+  [ TestLabel  "BOOL"      boolTests
+  , TestLabel  "SYMBOL"    symbolTests
+  , TestLabel  "CHAR"      charTests
+  , TestLabel  "STRING"    stringTests
+  , TestLabel  "INTEGER"   integerTests
+  , TestLabel  "RATIONAL"  rationalTests
+  , TestLabel  "REAL"      realTests
+  , TestLabel  "COMPLEX"   complexTests
+  , TestLabel  "LIST"      listTests
   ]
 
 main = do runTestTTAndExit tests

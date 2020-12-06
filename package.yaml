@@ -21,7 +21,7 @@ executables:
       - -Wno-unused-do-bind
 
 tests:
-  hunit:
+  parser-tests:
     main: Tests.hs
     source-dirs:
       - app
