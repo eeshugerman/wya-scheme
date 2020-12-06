@@ -196,6 +196,41 @@ testVector = testFactory LP.parseVector
                                    , LispList [LispInteger 3, LispSymbol "xyz"]])
   ]
 
+testQuoted = testFactory LP.parseQuoted
+  [ ("'foo",         LispList [LispSymbol "quote", LispSymbol "foo"])
+
+  , ("'(1 2)",       LispList [ LispSymbol "quote"
+                              , LispList [LispInteger 1, LispInteger 2]
+                              ])
+  , ([r|'(#\' '5)|], LispList [ LispSymbol "quote"
+                              , LispList [ LispCharacter '\''
+                                         , LispList [ LispSymbol "quote",
+                                                      LispInteger 5
+                                                    ]
+                                         ]
+                              ])
+  ]
+
+testQuasiQuoted = testFactory LP.parseQuasiquoted
+  [ ("`foo",           LispList [LispSymbol "quasiquote", LispSymbol "foo"])
+
+  , ("`(1 2)",         LispList [ LispSymbol "quasiquote"
+                                , LispList [LispInteger 1, LispInteger 2]
+                                ])
+  , ("``foo",          LispList [ LispSymbol "quasiquote"
+                                , LispList [ LispSymbol "quasiquote"
+                                           , LispSymbol "foo"
+                                           ]
+                                ])
+  , ([r|`("foo" `5)|], LispList [ LispSymbol "quasiquote"
+                              , LispList [ LispString "foo"
+                                         , LispList [ LispSymbol "quasiquote",
+                                                      LispInteger 5
+                                                    ]
+                                         ]
+                              ])
+  ]
+
 tests = TestLabel "PARSE" $ TestList
   [ TestLabel  "BOOL"        boolTests
   , TestLabel  "SYMBOL"      symbolTests
@@ -207,7 +242,9 @@ tests = TestLabel "PARSE" $ TestList
   , TestLabel  "COMPLEX"     complexTests
   , TestLabel  "LIST"        listTests
   , TestLabel  "DOTTED LIST" testDottedList
-  , TestLabel  "TEST VECTOR" testVector
+  , TestLabel  "VECTOR"      testVector
+  , TestLabel  "QUOTED"      testQuoted
+  , TestLabel  "QUASIQUOTED" testQuasiQuoted
   ]
 
 main = do runTestTTAndExit tests
