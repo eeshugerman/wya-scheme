@@ -114,24 +114,27 @@ realTests = testFactory LP.parseReal
   , ("-0.123",   LispReal (-0.123))
   ]
 
+($<) :: (a -> b) -> a -> b
+($<) = ($)
+
 complexTests = testFactory LP.parseComplex
-  [ ("1+1i",      LispComplex (LispInteger 1)       (LispInteger 1))
-  , ("1.1+1.1i",  LispComplex (LispReal 1.1)        (LispReal 1.1))
-  , (".1+.1i",    LispComplex (LispReal 0.1)        (LispReal 0.1))
-  , ("1/2+.1i",   LispComplex (LispRational 1 2)    (LispReal 0.1))
-  , (".1+1/2i",   LispComplex (LispReal 0.1)        (LispRational 1 2))
+  [ ("1+1i",      LispComplex $< LispInteger 1    $< LispInteger 1)
+  , ("1.1+1.1i",  LispComplex $< LispReal 1.1     $< LispReal 1.1)
+  , (".1+.1i",    LispComplex $< LispReal 0.1     $< LispReal 0.1)
+  , ("1/2+.1i",   LispComplex $< LispRational 1 2 $< LispReal 0.1)
+  , (".1+1/2i",   LispComplex $< LispReal 0.1     $< LispRational 1 2)
 
-  , ("-1+1i",     LispComplex (LispInteger (-1))    (LispInteger 1))
-  , ("-1.1+1.1i", LispComplex (LispReal (-1.1))     (LispReal 1.1))
-  , ("-.1+.1i",   LispComplex (LispReal (-0.1))     (LispReal 0.1))
-  , ("-1/2+.1i",  LispComplex (LispRational (-1) 2) (LispReal 0.1))
-  , ("-.1+1/2i",  LispComplex (LispReal (-0.1))     (LispRational 1 2))
+  , ("-1+1i",     LispComplex $< LispInteger (-1)    $< LispInteger 1)
+  , ("-1.1+1.1i", LispComplex $< LispReal (-1.1)     $< LispReal 1.1)
+  , ("-.1+.1i",   LispComplex $< LispReal (-0.1)     $< LispReal 0.1)
+  , ("-1/2+.1i",  LispComplex $< LispRational (-1) 2 $< LispReal 0.1)
+  , ("-.1+1/2i",  LispComplex $< LispReal (-0.1)     $< LispRational 1 2)
 
-  , ("1-1i",      LispComplex (LispInteger 1)       (LispInteger (-1)))
-  , ("1.1-1.1i",  LispComplex (LispReal 1.1)        (LispReal (-1.1)))
-  , (".1-.1i",    LispComplex (LispReal 0.1)        (LispReal (-0.1)))
-  , ("1/2-.1i",   LispComplex (LispRational 1 2)    (LispReal (-0.1)))
-  , (".1-1/2i",   LispComplex (LispReal 0.1)        (LispRational (-1) 2))
+  , ("1-1i",      LispComplex $< LispInteger 1    $< LispInteger (-1))
+  , ("1.1-1.1i",  LispComplex $< LispReal 1.1     $< LispReal (-1.1))
+  , (".1-.1i",    LispComplex $< LispReal 0.1     $< LispReal (-0.1))
+  , ("1/2-.1i",   LispComplex $< LispRational 1 2 $< LispReal (-0.1))
+  , (".1-1/2i",   LispComplex $< LispReal 0.1     $< LispRational (-1) 2)
   ]
 
 listTests = testFactory LP.parseListOrDottedList
@@ -145,11 +148,13 @@ listTests = testFactory LP.parseListOrDottedList
 
   , ("(foo)",             LispList [LispSymbol "foo"])
   , ("(bar baz)",         LispList [LispSymbol "bar", LispSymbol "baz"])
+  , ("(() ())",           LispList [LispList [], LispList []])
 
-  , ( "(-1 (2 3) 4)" ,    LispList [ LispInteger (-1)
-                                   , LispList [LispInteger 2, LispInteger 3]
-                                   , LispInteger 4
-                                   ]
+  , ( "(-1 (2 3) 4)"
+    , LispList [ LispInteger (-1)
+               , LispList [LispInteger 2, LispInteger 3]
+               , LispInteger 4
+               ]
     )
 
   , ( [r|("asdf" (-2/3 #t) #\space)|]
@@ -160,17 +165,35 @@ listTests = testFactory LP.parseListOrDottedList
     )
   ]
 
+testDottedList = testFactory LP.parseListOrDottedList
+  [ ("(1 . 2)",           LispDottedList [LispInteger 1]  $< LispInteger 2)
+  , ("(1 . .2)",          LispDottedList [LispInteger 1]  $< LispReal 0.2)
+  , ("(1 . (2 3))",       LispDottedList [LispInteger 1]  $< LispList [LispInteger 2, LispInteger 3])
+  , ("(#f . (2 3))",      LispDottedList [LispBool False] $< LispList [LispInteger 2, LispInteger 3])
+
+  , ("(1 2 . 3)",         LispDottedList [LispInteger 1, LispInteger 2] $< LispInteger 3)
+  , ("(1 .2 . -3)",       LispDottedList [LispInteger 1, LispReal 0.2]  $< LispInteger (-3))
+
+  , ("(1 . (2 . 3))" ,    LispDottedList [LispInteger 1]
+                                         (LispDottedList [LispInteger 2]
+                                                         (LispInteger 3)))
+  , ("(1 . (2 . 3/4))",  LispDottedList [LispInteger 1]
+                                         (LispDottedList [LispInteger 2]
+                                                         (LispRational 3 4)))
+  ]
+
 
 tests = TestLabel "PARSE" $ TestList
-  [ TestLabel  "BOOL"      boolTests
-  , TestLabel  "SYMBOL"    symbolTests
-  , TestLabel  "CHAR"      charTests
-  , TestLabel  "STRING"    stringTests
-  , TestLabel  "INTEGER"   integerTests
-  , TestLabel  "RATIONAL"  rationalTests
-  , TestLabel  "REAL"      realTests
-  , TestLabel  "COMPLEX"   complexTests
-  , TestLabel  "LIST"      listTests
+  [ TestLabel  "BOOL"        boolTests
+  , TestLabel  "SYMBOL"      symbolTests
+  , TestLabel  "CHAR"        charTests
+  , TestLabel  "STRING"      stringTests
+  , TestLabel  "INTEGER"     integerTests
+  , TestLabel  "RATIONAL"    rationalTests
+  , TestLabel  "REAL"        realTests
+  , TestLabel  "COMPLEX"     complexTests
+  , TestLabel  "LIST"        listTests
+  , TestLabel  "DOTTED LIST" testDottedList
   ]
 
 main = do runTestTTAndExit tests
