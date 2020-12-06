@@ -35,19 +35,21 @@ boolTests = testFactory LP.parseBool
   [ ("#t", LispBool True)
   , ("#f", LispBool False)]
 
-charTests = testFactory LP.parseCharacter
-  [ ([r|#\a|],            LispCharacter 'a')
-  , ([r|#\A|],            LispCharacter 'A')
-  , ([r|#\(|],            LispCharacter '(')
-  , ([r|#\f|],            LispCharacter 'f')
-  , ([r|#\t|],            LispCharacter 't')
-  , ([r|#\1|],            LispCharacter '1')
-  , ([r|#\\|],            LispCharacter '\\')
-  , ([r|#\#|],            LispCharacter '#')
-  , ([r|#\space|],        LispCharacter ' ')
-  , ([r|#\newline|],      LispCharacter '\n')
-  , ([r|#\tab|],          LispCharacter '\t')
-  ]
+charTests =
+  let printingChars = map
+        (\c -> ("#\\" ++ [c], LispCharacter c)) $
+        concat [ ['a'..'z']
+               , ['A'..'Z']
+               , map (head . show) [0..9]
+               , "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+               ]
+      otherChars =
+        [ ("#\\space",   LispCharacter ' ')
+        , ("#\\newline", LispCharacter '\n')
+        , ("#\\tab",     LispCharacter '\t')
+        ]
+  in testFactory LP.parseCharacter (printingChars ++ otherChars)
+
 
 stringTests = testFactory LP.parseString
   [ ([r|"foo"|],       LispString "foo")
@@ -256,6 +258,22 @@ testUnquoted = testFactory LP.parseUnquoted
                                         ]
                              ])
   ]
+
+-- exprTests = testFactory LP.parseExpr
+--   [ ("foo",             LispSymbol "foo")
+--   , ("#t",              LispBool True)
+--   , ("#f",              LispBool False)
+--   , ("#b1",             LispInteger 1)
+--   , ("#o1",             LispInteger 1)
+--   , ("#d1",             LispInteger 1)
+--   , ("#x1",             LispInteger 1)
+--   , ([r|#\a|],          LispCharacter 'a')
+--   , ([r|#\b|],          LispCharacter 'b')
+--   , ([r|#\c|],          LispCharacter 'c')
+--   , ([r|#\x|],          LispCharacter 'x')
+--   , ([r|#\y|],          LispCharacter 'y')
+--   , ([r|#\z|],          LispCharacter 'z')
+--   ]
 
 tests = TestLabel "PARSE" $ TestList
   [ TestLabel  "BOOL"        boolTests
