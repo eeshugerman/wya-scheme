@@ -1,8 +1,7 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Main where
 import qualified Text.ParserCombinators.Parsec as P
 import System.Environment ( getArgs )
+
 import Text.Pretty.Simple (pShow)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
