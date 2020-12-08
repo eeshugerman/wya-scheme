@@ -296,6 +296,9 @@ exprTests = testFactory LP.parseExpr
   , ([r|#\y|],          LispCharacter 'y')
   , ([r|#\z|],          LispCharacter 'z')
   , ([r|"foo"|],        LispString "foo" )
+  , ("(1 'foo)",        LispList [ LispInteger 1
+                                 , LispList[LispSymbol "quote", LispSymbol "foo"]
+                                 ])
   ]
 
 tests :: Test
