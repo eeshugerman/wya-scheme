@@ -8,6 +8,7 @@ import qualified Data.Text.Lazy as TL
 
 import Parser ( parseExpr )
 import Types ( LispVal ( LispString) )
+import Evaluator ( eval )
 
 
 strPShow :: LispVal -> String
@@ -20,15 +21,21 @@ readExpr input = case P.parse parseExpr "[source]" input of
   Right value -> value
 
 main :: IO ()
-main = getArgs >>= readFile . head >>= print . readExpr
+main = getArgs >>= readFile . head >>= print . eval . readExpr
 
 
 -- testing / debug helpers
+
+debugReadExpr :: String -> String
+debugReadExpr input = case P.parse parseExpr "[source]" input of
+  Left err -> "No match: " ++ show err
+  Right value -> strPShow value
+
 applyParser :: P.Parser LispVal -> String -> IO ()
 applyParser parser input = putStrLn $ case P.parse parser "[test]" input of
   Left err -> "No match: " ++ show err
   Right value -> "Found value: " ++ strPShow value
 
 printReadExpr :: String -> IO ()
-printReadExpr input = print $ readExpr input
+printReadExpr input = putStrLn $ debugReadExpr input
 
