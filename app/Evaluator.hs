@@ -23,6 +23,9 @@ primatives =
   , ("complex?",     isComplex)
   , ("list?",        isList)
   , ("vector?",      isVector)
+
+  , ("symbol->string", symbolToString)
+  , ("string->symbol", stringToSymbol)
   ]
   where
     numericBinOp
@@ -36,37 +39,38 @@ primatives =
         unpackInteger _ = error "unimplemented or invalid numericBinOp"
 
     -- TODO: how to make it DRY? type tags? https://stackoverflow.com/a/6039229/8204023
-    argsErrMsg typeName = "wrong number of arguments to `" ++ typeName ++ "?`"
+    arityErrMsg typeName = "wrong number of arguments to `" ++ typeName ++ "`"
+    argsTypeErrMsg typeName = "wrong type passed to `" ++ typeName ++ "`"
 
     isSymbol :: [LispVal] -> LispVal
     isSymbol [LispSymbol _]        = LispBool True
     isSymbol [_]                   = LispBool False
-    isSymbol _                     = error $ argsErrMsg "symbol"
+    isSymbol _                     = error $ arityErrMsg "symbol?"
 
     isBoolean :: [LispVal] -> LispVal
     isBoolean [LispBool _]         = LispBool True
     isBoolean [_]                  = LispBool False
-    isBoolean _                    = error $ argsErrMsg "boolean"
+    isBoolean _                    = error $ arityErrMsg "boolean?"
 
     isCharacter :: [LispVal] -> LispVal
     isCharacter [LispCharacter _] = LispBool True
     isCharacter [_]               = LispBool False
-    isCharacter _                 = error $ argsErrMsg "character"
+    isCharacter _                 = error $ arityErrMsg "character?"
 
     isString :: [LispVal] -> LispVal
     isString [LispString _]       = LispBool True
     isString [_]                  = LispBool False
-    isString _                    = error $ argsErrMsg "string"
+    isString _                    = error $ arityErrMsg "string?"
 
     isList :: [LispVal] -> LispVal
     isList [LispList _]           = LispBool True
     isList [_]                    = LispBool False
-    isList _                      = error $ argsErrMsg "list"
+    isList _                      = error $ arityErrMsg "list?"
 
     isVector :: [LispVal] -> LispVal
     isVector [LispVector _]       = LispBool True
     isVector [_]                  = LispBool False
-    isVector _                    = error $ argsErrMsg "vector"
+    isVector _                    = error $ arityErrMsg "vector?"
 
     isNumber :: [LispVal] -> LispVal
     isNumber = LispBool . \case
@@ -75,7 +79,7 @@ primatives =
       [LispReal _]       -> True
       [LispComplex _ _]  -> True
       [_]                -> False
-      _                  -> error $ argsErrMsg "number"
+      _                  -> error $ arityErrMsg "number?"
 
     isComplex :: [LispVal] -> LispVal
     isComplex = isNumber
@@ -86,21 +90,30 @@ primatives =
       [LispRational _ _] -> True
       [LispReal _]       -> True
       [_]                -> False
-      _                  -> error $ argsErrMsg "number"
+      _                  -> error $ arityErrMsg "number?"
 
     isRational :: [LispVal] -> LispVal
     isRational = LispBool . \case
       [LispInteger _]    -> True
       [LispRational _ _] -> True
       [_]                -> False
-      _                  -> error $ argsErrMsg "number"
+      _                  -> error $ arityErrMsg "number?"
 
     isInteger :: [LispVal] -> LispVal
     isInteger = LispBool . \case
       [LispInteger _]    -> True
       [_]                -> False
-      _                  -> error $ argsErrMsg "number"
+      _                  -> error $ arityErrMsg "number?"
 
+    symbolToString :: [LispVal] -> LispVal
+    symbolToString [LispSymbol val] = LispString val
+    symbolToString [_]              = error $ argsTypeErrMsg "symbol->string"
+    symbolToString _                = error $ arityErrMsg "symbol->string"
+
+    stringToSymbol :: [LispVal] -> LispVal
+    stringToSymbol [LispString val] = LispSymbol val
+    stringToSymbol [_]              = error $ argsTypeErrMsg "string->symbol"
+    stringToSymbol _                = error $ arityErrMsg "string->symbol"
 
 
 eval :: LispVal -> LispVal
