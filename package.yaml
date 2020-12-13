@@ -8,6 +8,7 @@ dependencies:
   - array
   - HUnit
   - raw-strings-qq
+  - mtl
 
 executables:
   wya-scheme-exe:

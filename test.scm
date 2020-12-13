@@ -1,1 +1,2 @@
-(* 4 5 (- 10 3))
+(symbol->string 'asdf)
+

@@ -2,9 +2,13 @@ module Types
   ( Sign (..)
   , Radix (..)
   , LispVal (..)
+  , LispError (..)
+  , LispValOrError
+  -- , ThrowsError
   ) where
 
 import qualified Data.Array as A
+import Text.Parsec ( ParseError )
 
 data Sign = Plus | Minus
 
@@ -72,4 +76,31 @@ showLispVal (LispList val)             = "(" ++ unwordsList val ++ ")"
 showLispVal (LispVector val)           = "#(" ++ unwordsArray val ++ ")"
 showLispVal (LispDottedList begin end) = "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
 
+
+
+data LispError = NumArgs Integer [LispVal]
+               | TypeMismatch String LispVal
+               | ParseError ParseError
+               | BadForm String LispVal
+               | NotAFunction String String
+               | UnboundVar String String
+               | Default String
+
+instance Show LispError where show = showLispError
+
+showLispError :: LispError -> String
+showLispError (UnboundVar msg varname)       = msg ++ ": " ++ varname
+showLispError (BadForm msg form)             = msg ++ ": " ++ show form
+showLispError (NotAFunction msg func)        = msg ++ ": " ++ show func
+showLispError (NumArgs expected found)       = "Expected " ++ show expected
+                                              ++ " args; found values " ++ unwordsList found
+showLispError (TypeMismatch expected found)  = "Invalid type: expected " ++ expected
+                                              ++ ", found " ++ show found
+showLispError (ParseError err)               = "Parse error at " ++ show err  -- TODO: excessive showification
+showLispError (Default msg)                  = "Error: " ++ msg
+
+-- type ThrowsError = Either LispError
+
+
+type LispValOrError = Either LispError LispVal
 
