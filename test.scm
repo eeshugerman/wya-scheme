@@ -1,2 +1,2 @@
-((symbol->string 'asdf)
+(real? (+ 1.2 4/5 5 0+2.5i))
 
