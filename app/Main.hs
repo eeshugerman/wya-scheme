@@ -19,22 +19,20 @@ import Evaluator (eval)
 strPShow :: LispVal -> String
 strPShow = T.unpack . TL.toStrict . pShow
 
-readExpr :: String -> LispValOrError
-readExpr input = case P.parse parseExpr "[source]" input of
+readExpr :: String -> String -> LispValOrError
+readExpr filename input = case P.parse parseExpr filename input of
   Left err -> throwError $ ParseError err
   Right value -> return value
 
 main :: IO ()
--- main = getArgs >>= readFile . head >>= print . eval . readExpr
-
 main = do
   (filename:_) <- getArgs
   sourceCode <- readFile filename
-  let parsed = readExpr sourceCode
+  let parsed = readExpr filename sourceCode
       evaled = parsed >>= eval
-  print $ case evaled of
-    Left err -> "Error: " ++ show err
-    Right value -> show value
+  case evaled of
+    Left err -> print err
+    Right value -> print value
 
 
 -- testing / debug helpers

@@ -97,10 +97,8 @@ showLispError (NumArgs expected found)       = "Expected " ++ show expected
                                               ++ " args; found values " ++ unwordsList found
 showLispError (TypeMismatch expected found)  = "Invalid type: expected " ++ expected
                                               ++ ", found " ++ show found
-showLispError (ParseError err)               = "Parse error at " ++ show err  -- TODO: excessive showification
+showLispError (ParseError err)               = "Parse error at " ++ show err
 showLispError (Default msg)                  = "Error: " ++ msg
-
--- type ThrowsError = Either LispError
 
 
 type LispValOrError = Either LispError LispVal
