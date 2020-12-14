@@ -25,6 +25,7 @@ data LispVal = LispSymbol String
              | LispList [LispVal]
              | LispVector (A.Array Int LispVal)
              | LispDottedList [LispVal] LispVal
+             deriving Eq
 
 instance Show LispVal where show = showLispVal
 
