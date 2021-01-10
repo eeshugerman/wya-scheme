@@ -8,12 +8,12 @@ import Data.Array (listArray)
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  ( Sign(Plus, Minus)
-  , Radix(..)
-  , LispVal(..)
-  )
+  (LispVal(..))
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
+
+data Sign = Plus | Minus
+data Radix = Binary | Octal | Decimal | Hex
 
 -- based on https://www.scheme.com/tspl4/grammar.html#Symbols
 parseSymbol :: P.Parser LispVal
