@@ -19,10 +19,7 @@ eval :: LispVal -> LispValOrError
 eval val@(LispBool _)        = return val
 eval val@(LispCharacter _)   = return val
 eval val@(LispString _)      = return val
-eval val@(LispInteger _)     = return val
-eval val@(LispRational _ _)  = return val
-eval val@(LispReal _)        = return val
-eval val@(LispComplex _ _)   = return val
+eval val@(LispNumber _)      = return val
 -- eval val@(LispVector)
 -- eval val@(LispDottedList)
 

@@ -4,11 +4,13 @@ module Parser where
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ((<|>))
 import Data.Char ( toLower )
-import Data.Array (listArray)
+import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  (LispVal(..))
+  ( LispNumber(..)
+  , LispVal(..)
+  )
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
 
@@ -83,7 +85,7 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
-parseInteger :: P.Parser LispVal
+parseInteger :: P.Parser LispNumber
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
@@ -122,7 +124,7 @@ parseInteger = P.try $ do
       Hex ->     P.oneOf "0123456789abcdefABCDEF"
 
 
-parseRational :: P.Parser LispVal
+parseRational :: P.Parser LispNumber
 parseRational = P.try $ do
   sign <- parseSign
   numerator <- P.many1 P.digit
@@ -132,7 +134,7 @@ parseRational = P.try $ do
 
 
 -- TODO: #e / #i
-parseReal :: P.Parser LispVal
+parseReal :: P.Parser LispNumber
 parseReal = P.try $ do
   sign <- parseSign
   whole <- P.many P.digit
@@ -145,12 +147,17 @@ parseReal = P.try $ do
          in return $ LispReal $ applySign sign mag
 
 
-parseComplex :: P.Parser LispVal
+parseComplex :: P.Parser LispNumber
 parseComplex = P.try $ do
   real <- P.try parseReal <|> P.try parseRational <|> parseInteger
   imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
   P.char 'i'
   return $ LispComplex real imag
+
+parseNumber :: P.Parser LispVal
+parseNumber = fmap
+  LispNumber
+  (parseReal <|> parseRational <|> parseComplex <|> parseInteger)
 
 parseLispVals :: P.Parser [LispVal]
 -- endBy is like sepBy except if there's seperator at the end it will be consumed
@@ -196,10 +203,7 @@ parseVector = do
 parseExpr :: P.Parser LispVal
 parseExpr = parseCharacter
         <|> parseBool
-        <|> parseReal
-        <|> parseRational
-        <|> parseComplex
-        <|> parseInteger
+        <|> parseNumber
         <|> parseSymbol
         <|> parseVector
         <|> parseString

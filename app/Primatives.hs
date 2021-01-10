@@ -1,7 +1,11 @@
-{-# LANGUAGE LambdaCase #-}
 module Primatives ( primatives ) where
 import Control.Monad.Except ( throwError )
-import Types ( LispVal (..), LispError (..), LispValOrError )
+import Types
+  ( LispNumber (..)
+  , LispVal (..)
+  , LispError (..)
+  , LispValOrError
+  )
 
 import Data.Complex (Complex((:+)), realPart, imagPart)
 
@@ -34,21 +38,12 @@ primatives =
 ------------------------------------------
 -- helpers (not actual scheme primatives)
 ------------------------------------------
-isNumber_ :: LispVal -> Bool
-isNumber_ = \case
-  LispInteger _    -> True
-  LispRational _ _ -> True
-  LispReal _       -> True
-  LispComplex _ _  -> True
-  _                -> False
-
 numericBinOp
-  :: (LispVal -> LispVal -> LispVal) -- op
-  -> [LispVal]                       -- args
-  -> LispValOrError                  -- result
-numericBinOp _ []             = throwError $ NumArgs 2 []
-numericBinOp _ singleVal@[_]  = throwError $ NumArgs 2 singleVal
-numericBinOp op (arg:args)    = foldlEither wrappedOp arg args
+  :: (LispNumber -> LispNumber -> LispNumber)
+  -> ([LispVal] -> LispValOrError )
+numericBinOp _ []              = throwError $ NumArgs 2 []
+numericBinOp _ singleVal@[_]   = throwError $ NumArgs 2 singleVal
+numericBinOp op (arg:args)     = foldlEither wrappedOp arg args
   where
     foldlEither
       :: (LispVal -> LispVal -> LispValOrError) -- wrappedOp
@@ -61,13 +56,13 @@ numericBinOp op (arg:args)    = foldlEither wrappedOp arg args
       Right val -> foldlEither f val xs
 
     wrappedOp :: LispVal -> LispVal -> LispValOrError
-    wrappedOp a b
-      | not $ isNumber_ a = throwError $ TypeMismatch "number" a
-      | not $ isNumber_ b = throwError $ TypeMismatch "number" b
-      | otherwise         = return $ op a b
+    wrappedOp (LispNumber a) (LispNumber b) = return $ LispNumber $ op a b
+    wrappedOp a              (LispNumber _) = throwError $ TypeMismatch "number" a
+    wrappedOp (LispNumber _) b              = throwError $ TypeMismatch "number" b
+    wrappedOp a              _              = throwError $ TypeMismatch "number" a
 
 -----------------------------------
-add :: LispVal -> LispVal -> LispVal
+add :: LispNumber  -> LispNumber -> LispNumber
 -----------------------------------
 
 add (LispInteger a)              (LispInteger b)              = LispInteger (a + b)
@@ -90,10 +85,8 @@ add a@(LispComplex _ _)          b@(LispReal _)               = add b a
 add a@(LispComplex _ _)          b@(LispRational _ _)         = add b a
 add (LispComplex aReal aImag)    (LispComplex bReal bImag)    = LispComplex (add aReal bReal) (add aImag bImag)
 
--- TODO: design types so this isn't necessary
-add _ _ = error "internal error: bad args to add"
 
-addRationals :: LispVal -> LispVal -> LispVal
+addRationals :: LispNumber -> LispNumber -> LispNumber
 addRationals (LispRational aNumer aDenom) (LispRational bNumer bDenom) =
   let numer = (aNumer * bDenom) + (bNumer * aDenom)
       denom = aDenom * bDenom
@@ -101,7 +94,7 @@ addRationals (LispRational aNumer aDenom) (LispRational bNumer bDenom) =
 addRationals _ _ = error "internal error in addRationals"
 
 -----------------------------------------
-multiply :: LispVal -> LispVal -> LispVal
+multiply :: LispNumber -> LispNumber -> LispNumber
 -----------------------------------------
 
 multiply (LispInteger a)              (LispInteger b)              = LispInteger (a * b)
@@ -124,9 +117,7 @@ multiply a@(LispComplex _ _)          b@(LispReal _)               = add b a
 multiply a@(LispComplex _ _)          b@(LispRational _ _)         = add b a
 multiply a@(LispComplex _ _)          b@(LispComplex _ _)          = multiplyComplexes a b
 
-multiply _ _ = error "internal error: bad args to multiply"
-
-multiplyComplexes :: LispVal -> LispVal -> LispVal
+multiplyComplexes :: LispNumber -> LispNumber -> LispNumber
 multiplyComplexes (LispComplex aReal aImag) (LispComplex bReal bImag) =
   let real = add (multiply aReal bImag) (multiply bImag aReal)
       imag = subtract_ (multiply aReal bReal) (multiply aImag bImag)
@@ -134,14 +125,14 @@ multiplyComplexes (LispComplex aReal aImag) (LispComplex bReal bImag) =
 multiplyComplexes _ _ = error "internal error in multiplyComplexes"
 
 -----------------------------------------
-subtract_ :: LispVal -> LispVal -> LispVal
+subtract_ :: LispNumber -> LispNumber -> LispNumber
 -----------------------------------------
 
 subtract_ a b = let negativeB = multiply (LispInteger (-1)) b
                 in add a negativeB
 
 -----------------------------------------
-divide :: LispVal -> LispVal -> LispVal
+divide :: LispNumber -> LispNumber -> LispNumber
 -----------------------------------------
 
 divide (LispInteger a)       (LispInteger b)              = LispRational a b
@@ -150,26 +141,26 @@ divide a@(LispInteger _)     (LispRational bNumer bDenom) = multiply a (LispRati
 divide (LispInteger a)       (LispComplex bReal bImag)    = divideByComplex a bReal bImag
 divide a b = multiply a (divide (LispInteger 1) b)
 
-divideByComplex :: Integer -> LispVal -> LispVal -> LispVal
+divideByComplex :: Integer -> LispNumber -> LispNumber -> LispNumber
 divideByComplex a bReal bImag =
   let aRealFloat = fromInteger a
       aImagFloat = 0.0
-      bRealFloat = lispValToFloat bReal
-      bImagFloat = lispValToFloat bImag
+      bRealFloat = toFloat bReal
+      bImagFloat = toFloat bImag
       res = (aRealFloat :+ aImagFloat) / (bRealFloat :+ bImagFloat)
   in LispComplex (LispReal $ realPart res) (LispReal $ imagPart res)
   where
-    lispValToFloat :: LispVal -> Float
-    lispValToFloat (LispInteger val)             = fromInteger val
-    lispValToFloat (LispReal val)                = val
-    lispValToFloat (LispRational numer denom)    = fromInteger numer / fromInteger denom
-    lispValToFloat _                             = error "internal error in divide"
+    toFloat :: LispNumber -> Float
+    toFloat (LispInteger val)             = fromInteger val
+    toFloat (LispReal val)                = val
+    toFloat (LispRational numer denom)    = fromInteger numer / fromInteger denom
+    toFloat (LispComplex _ _)             = error $ "internal error: nested complex number. "
+                                                 ++ "this expression should not have parsed."
 
 -----------------------------------------
 -- type testing
 -----------------------------------------
 
--- TODO: how to make it DRY? type tags? https://stackoverflow.com/a/6039229/8204023
 isSymbol :: [LispVal] -> LispValOrError
 isSymbol [LispSymbol _]       = return $ LispBool True
 isSymbol [_]                  = return $ LispBool False
@@ -200,30 +191,38 @@ isVector [LispVector _]       = return $ LispBool True
 isVector [_]                  = return $ LispBool False
 isVector args                 = throwError $ NumArgs 1 args
 
+-- num type stuff
+-- todo: this is dumb, arguably. maybe don't be fancy.
+data NumType = Number | Complex | Real | Rational | Integer
+isNumType :: NumType -> LispNumber -> Bool
+isNumType Number   _   = True
+isNumType Complex  _   = True
+isNumType Real     val = case val of LispComplex _ _  -> False
+                                     _                -> isNumType Complex val
+isNumType Rational val = case val of LispReal _       -> False
+                                     _                -> isNumType Real val
+isNumType Integer  val = case val of LispRational _ _ -> False
+                                     _                -> isNumType Rational val
+
+isNumTypeWrapper :: NumType -> [LispVal] -> LispValOrError
+isNumTypeWrapper numType [LispNumber num] = return $ LispBool $ isNumType numType num
+isNumTypeWrapper _       [_]              = return $ LispBool False
+isNumTypeWrapper _       args             = throwError $ NumArgs 1 args
+
 isNumber :: [LispVal] -> LispValOrError
-isNumber [arg]   = return $ LispBool $ isNumber_ arg
-isNumber args    = throwError $ NumArgs 1 args
+isNumber = isNumTypeWrapper Number
 
 isComplex :: [LispVal] -> LispValOrError
-isComplex = isNumber
+isComplex = isNumTypeWrapper Complex
 
-isReal :: [LispVal] ->    LispValOrError
-isReal [LispInteger _]    = return $ LispBool True
-isReal [LispRational _ _] = return $ LispBool True
-isReal [LispReal _]       = return $ LispBool True
-isReal [_]                = return $ LispBool False
-isReal args               = throwError $ NumArgs 1 args
+isReal :: [LispVal] -> LispValOrError
+isReal = isNumTypeWrapper Real
 
 isRational :: [LispVal] -> LispValOrError
-isRational [LispInteger _]    = return $ LispBool True
-isRational [LispRational _ _] = return $ LispBool True
-isRational [_]                = return $ LispBool False
-isRational args               = throwError $ NumArgs 1 args
+isRational = isNumTypeWrapper Rational
 
 isInteger :: [LispVal] -> LispValOrError
-isInteger [LispInteger _]    = return $ LispBool True
-isInteger [_]                = return $ LispBool False
-isInteger args               = throwError $ NumArgs 1 args
+isInteger = isNumTypeWrapper Integer
 
 -----------------------------------------
 -- type conversion

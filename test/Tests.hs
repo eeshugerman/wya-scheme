@@ -6,17 +6,17 @@ import Test.HUnit
 import qualified Text.ParserCombinators.Parsec as Parsec
 import Text.RawString.QQ
 
-import Types (LispVal(..))
+import Types (LispNumber(..), LispVal(..))
 import qualified Parser as LP
 import Data.Array (listArray)
 
 
-apply :: Parsec.Parser LispVal -> String -> LispVal
+apply :: Parsec.Parser a -> String -> a
 apply parser input = case Parsec.parse parser"[test]" input of
   Left err -> error $ show err
   Right value -> value
 
-testFactory :: Parsec.Parser LispVal -> [(String, LispVal)] -> Test
+testFactory :: (Eq a, Show a) => Parsec.Parser a -> [(String, a)] -> Test
 testFactory parser casePairs = TestList $
   [ TestCase $ assertEqual "" (apply parser a) b
   | (a, b) <- casePairs ]
@@ -152,12 +152,21 @@ complexTests = testFactory LP.parseComplex
   , (".1-1/2i",   LispComplex $< LispReal 0.1     $< LispRational (-1) 2)
   ]
 
+toLispInt :: Integer -> LispVal
+toLispInt = LispNumber . LispInteger
+
+toLispReal :: Float -> LispVal
+toLispReal = LispNumber . LispReal
+
+toLispRational :: Integer -> Integer -> LispVal
+toLispRational a b = LispNumber $ LispRational a b
+
 listTests :: Test
 listTests = testFactory LP.parseListOrDottedList
-  [ ("(1 2 3)",           LispList [LispInteger 1, LispInteger 2, LispInteger 3])
+  [ ("(1 2 3)",           LispList [toLispInt 1, toLispInt 2, toLispInt 3])
   , ("()",                LispList [])
-  , ("(1)",               LispList [LispInteger 1])
-  , ("(.1 2/3)",          LispList [LispReal 0.1, LispRational 2 3])
+  , ("(1)",               LispList [toLispInt 1])
+  , ("(.1 2/3)",          LispList [toLispReal 0.1, toLispRational 2 3])
 
   , ([r|("foo")|],        LispList [LispString "foo"])
   , ([r|("bar" "baz")|],  LispList [LispString "bar", LispString "baz"])
@@ -166,14 +175,14 @@ listTests = testFactory LP.parseListOrDottedList
   , ("(bar baz)",         LispList [LispSymbol "bar", LispSymbol "baz"])
   , ("(() ())",           LispList [LispList [], LispList []])
 
-  , ("(-1 (2 3) 4)",      LispList [ LispInteger (-1)
-                                   , LispList [LispInteger 2, LispInteger 3]
-                                   , LispInteger 4
+  , ("(-1 (2 3) 4)",      LispList [ toLispInt (-1)
+                                   , LispList [toLispInt 2, toLispInt 3]
+                                   , toLispInt 4
                                    ])
 
   , ( [r|("asdf" (-2/3 #t) #\space)|]
     , LispList [ LispString "asdf"
-               , LispList [LispRational (-2) 3, LispBool True]
+               , LispList [toLispRational (-2) 3, LispBool True]
                , LispCharacter ' '
                ]
     )
@@ -181,28 +190,28 @@ listTests = testFactory LP.parseListOrDottedList
 
 dottedListTests :: Test
 dottedListTests = testFactory LP.parseListOrDottedList
-  [ ("(1 . 2)",           LispDottedList [LispInteger 1]  (LispInteger 2))
+  [ ("(1 . 2)",           LispDottedList [toLispInt 1]  (toLispInt 2))
 
-  , ("(1 . .2)",          LispDottedList [LispInteger 1]  (LispReal 0.2))
+  , ("(1 . .2)",          LispDottedList [toLispInt 1]  (toLispReal 0.2))
 
-  , ("(1 . (2 3))",       LispDottedList [LispInteger 1]
-                                         (LispList [LispInteger 2, LispInteger 3]))
+  , ("(1 . (2 3))",       LispDottedList [toLispInt 1]
+                                         (LispList [toLispInt 2, toLispInt 3]))
 
   , ("(#f . (2 3))",      LispDottedList [LispBool False]
-                                         (LispList [LispInteger 2, LispInteger 3]))
+                                         (LispList [toLispInt 2, toLispInt 3]))
 
-  , ("(1 2 . 3)",         LispDottedList [LispInteger 1, LispInteger 2]
-                                         (LispInteger 3))
+  , ("(1 2 . 3)",         LispDottedList [toLispInt 1, toLispInt 2]
+                                         (toLispInt 3))
 
-  , ("(1 .2 . -3)",       LispDottedList [LispInteger 1, LispReal 0.2]
-                                         (LispInteger (-3)))
+  , ("(1 .2 . -3)",       LispDottedList [toLispInt 1, toLispReal 0.2]
+                                         (toLispInt (-3)))
 
-  , ("(1 . (2 . 3))" ,    LispDottedList [LispInteger 1]
-                                         (LispDottedList [LispInteger 2]
-                                                         (LispInteger 3)))
-  , ("(1 . (2 . 3/4))",   LispDottedList [LispInteger 1]
-                                         (LispDottedList [LispInteger 2]
-                                                         (LispRational 3 4)))
+  , ("(1 . (2 . 3))" ,    LispDottedList [toLispInt 1]
+                                         (LispDottedList [toLispInt 2]
+                                                         (toLispInt 3)))
+  , ("(1 . (2 . 3/4))",   LispDottedList [toLispInt 1]
+                                         (LispDottedList [toLispInt 2]
+                                                         (toLispRational 3 4)))
   ]
 
 makeVector :: [LispVal] -> LispVal
@@ -210,13 +219,13 @@ makeVector elems = LispVector $ listArray (0, length elems - 1) elems
 
 vectorTests :: Test
 vectorTests = testFactory LP.parseVector
-  [ ("#(1 2)",  makeVector [LispInteger 1, LispInteger 2])
-  , ("#(1)",    makeVector [LispInteger 1])
+  [ ("#(1 2)",  makeVector [toLispInt 1, toLispInt 2])
+  , ("#(1)",    makeVector [toLispInt 1])
   , ("#()",     makeVector [])
-  , ("#(#t 0)", makeVector [LispBool True, LispInteger 0])
+  , ("#(#t 0)", makeVector [LispBool True, toLispInt 0])
 
-  , ("#(#(1 2) (3 xyz))", makeVector [ makeVector [LispInteger 1, LispInteger 2]
-                                     , LispList [LispInteger 3, LispSymbol "xyz"]])
+  , ("#(#(1 2) (3 xyz))", makeVector [ makeVector [toLispInt 1, toLispInt 2]
+                                     , LispList [toLispInt 3, LispSymbol "xyz"]])
   ]
 
 quotedTests :: Test
@@ -224,12 +233,12 @@ quotedTests = testFactory LP.parseQuoted
   [ ("'foo",         LispList [LispSymbol "quote", LispSymbol "foo"])
 
   , ("'(1 2)",       LispList [ LispSymbol "quote"
-                              , LispList [LispInteger 1, LispInteger 2]
+                              , LispList [toLispInt 1, toLispInt 2]
                               ])
   , ([r|'(#\' '5)|], LispList [ LispSymbol "quote"
                               , LispList [ LispCharacter '\''
                                          , LispList [ LispSymbol "quote",
-                                                      LispInteger 5
+                                                      toLispInt 5
                                                     ]
                                          ]
                               ])
@@ -240,7 +249,7 @@ quasiquotedTests = testFactory LP.parseQuasiquoted
   [ ("`foo",           LispList [LispSymbol "quasiquote", LispSymbol "foo"])
 
   , ("`(1 2)",         LispList [ LispSymbol "quasiquote"
-                                , LispList [LispInteger 1, LispInteger 2]
+                                , LispList [toLispInt 1, toLispInt 2]
                                 ])
   , ("``foo",          LispList [ LispSymbol "quasiquote"
                                 , LispList [ LispSymbol "quasiquote"
@@ -250,7 +259,7 @@ quasiquotedTests = testFactory LP.parseQuasiquoted
   , ([r|`("foo" `5)|], LispList [ LispSymbol "quasiquote"
                               , LispList [ LispString "foo"
                                          , LispList [ LispSymbol "quasiquote",
-                                                      LispInteger 5
+                                                      toLispInt 5
                                                     ]
                                          ]
                               ])
@@ -259,7 +268,7 @@ quasiquotedTests = testFactory LP.parseQuasiquoted
 unquotedTests :: Test
 unquotedTests = testFactory LP.parseUnquoted
   [ (",foo",        LispList [LispSymbol "unquote", LispSymbol "foo"])
-  , (",1",          LispList [LispSymbol "unquote", LispInteger 1])
+  , (",1",          LispList [LispSymbol "unquote", toLispInt 1])
   , (",()",         LispList [LispSymbol "unquote", LispList []])
 
   , (",,()",        LispList [ LispSymbol "unquote"
@@ -268,7 +277,7 @@ unquotedTests = testFactory LP.parseUnquoted
                                         ]
                              ])
   , (",(1 ,foo)",   LispList [ LispSymbol "unquote"
-                             , LispList [ LispInteger 1
+                             , LispList [ toLispInt 1
                                         , LispList [ LispSymbol "unquote"
                                                    , LispSymbol "foo"
                                                    ]
@@ -281,11 +290,11 @@ exprTests = testFactory LP.parseExpr
   [ ("foo",             LispSymbol "foo")
   , ("#t",              LispBool True)
   , ("#f",              LispBool False)
-  , ("1",               LispInteger 1)
-  , ("#b1",             LispInteger 1)
-  , ("#o1",             LispInteger 1)
-  , ("#d1",             LispInteger 1)
-  , ("#x1",             LispInteger 1)
+  , ("1",               toLispInt 1)
+  , ("#b1",             toLispInt 1)
+  , ("#o1",             toLispInt 1)
+  , ("#d1",             toLispInt 1)
+  , ("#x1",             toLispInt 1)
   , ("#(foo)",          makeVector [LispSymbol "foo"])
   , ("(foo)",           LispList [LispSymbol "foo"])
   , ("(foo . bar)",     LispDottedList $< [LispSymbol "foo"] $< LispSymbol "bar")
@@ -296,7 +305,7 @@ exprTests = testFactory LP.parseExpr
   , ([r|#\y|],          LispCharacter 'y')
   , ([r|#\z|],          LispCharacter 'z')
   , ([r|"foo"|],        LispString "foo" )
-  , ("(1 'foo)",        LispList [ LispInteger 1
+  , ("(1 'foo)",        LispList [ toLispInt 1
                                  , LispList[LispSymbol "quote", LispSymbol "foo"]
                                  ])
   ]
