@@ -77,7 +77,7 @@ add a@(LispReal _)               (LispComplex bReal bImag)    = LispComplex (add
 
 add a@(LispRational _ _)         b@(LispInteger _)            = add b a
 add a@(LispRational _ _)         b@(LispReal _)               = add b a
-add a@(LispRational _ _)         b@(LispRational _ _)         = addRationals a b
+add (LispRational an ad)         (LispRational  bn bd)        = addRationals an ad bn bd
 add a@(LispRational _ _)         (LispComplex bReal bImag)    = LispComplex (add a bReal) bImag
 
 add a@(LispComplex _ _)          b@(LispInteger _)            = add b a
@@ -85,13 +85,14 @@ add a@(LispComplex _ _)          b@(LispReal _)               = add b a
 add a@(LispComplex _ _)          b@(LispRational _ _)         = add b a
 add (LispComplex aReal aImag)    (LispComplex bReal bImag)    = LispComplex (add aReal bReal) (add aImag bImag)
 
-
-addRationals :: LispNumber -> LispNumber -> LispNumber
-addRationals (LispRational aNumer aDenom) (LispRational bNumer bDenom) =
+addRationals
+  :: Integer -> Integer -- a
+  -> Integer -> Integer -- b
+  -> LispNumber         -- res
+addRationals aNumer aDenom bNumer bDenom =
   let numer = (aNumer * bDenom) + (bNumer * aDenom)
       denom = aDenom * bDenom
   in LispRational numer denom
-addRationals _ _ = error "internal error in addRationals"
 
 -----------------------------------------
 multiply :: LispNumber -> LispNumber -> LispNumber
@@ -115,14 +116,16 @@ multiply a@(LispRational _ _)         (LispComplex bReal bImag)    = LispComplex
 multiply a@(LispComplex _ _)          b@(LispInteger _)            = add b a
 multiply a@(LispComplex _ _)          b@(LispReal _)               = add b a
 multiply a@(LispComplex _ _)          b@(LispRational _ _)         = add b a
-multiply a@(LispComplex _ _)          b@(LispComplex _ _)          = multiplyComplexes a b
+multiply (LispComplex ar ai)          (LispComplex br bi)          = multiplyComplexes ar ai br bi
 
-multiplyComplexes :: LispNumber -> LispNumber -> LispNumber
-multiplyComplexes (LispComplex aReal aImag) (LispComplex bReal bImag) =
+multiplyComplexes
+  :: LispNumber -> LispNumber  -- a
+  -> LispNumber -> LispNumber  -- b
+  -> LispNumber                -- res
+multiplyComplexes aReal aImag bReal bImag =
   let real = add (multiply aReal bImag) (multiply bImag aReal)
       imag = subtract_ (multiply aReal bReal) (multiply aImag bImag)
   in LispComplex real imag
-multiplyComplexes _ _ = error "internal error in multiplyComplexes"
 
 -----------------------------------------
 subtract_ :: LispNumber -> LispNumber -> LispNumber
@@ -139,7 +142,7 @@ divide (LispInteger a)       (LispInteger b)              = LispRational a b
 divide (LispInteger a)       (LispReal b)                 = LispReal (fromInteger a / b)
 divide a@(LispInteger _)     (LispRational bNumer bDenom) = multiply a (LispRational bDenom bNumer)
 divide (LispInteger a)       (LispComplex bReal bImag)    = divideByComplex a bReal bImag
-divide a b = multiply a (divide (LispInteger 1) b)
+divide a                     b                            = multiply a (divide (LispInteger 1) b)
 
 divideByComplex :: Integer -> LispNumber -> LispNumber -> LispNumber
 divideByComplex a bReal bImag =
