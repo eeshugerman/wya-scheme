@@ -4,6 +4,7 @@ import Types ( LispVal (..), LispError (..), LispValOrError )
 import Primatives ( primatives )
 
 
+-- TODO: nesting doesn't work
 evalQuasiquoted :: [LispVal] -> LispValOrError
 evalQuasiquoted =
   let iter :: [LispVal] -> [LispVal] -> LispValOrError
@@ -23,12 +24,8 @@ eval val@(LispNumber _)      = return val
 -- eval val@(LispVector)
 -- eval val@(LispDottedList)
 
-eval (LispList [LispSymbol "unquote", val]) = eval val
 eval (LispList [LispSymbol "quote", val]) = return val
-eval (LispList [LispSymbol "quasiquote", LispList list]) =
-  case evalQuasiquoted list of
-    Left err -> throwError err
-    Right val -> return val
+eval (LispList [LispSymbol "quasiquote", LispList list]) = evalQuasiquoted list
 
 eval (LispList (LispSymbol funcName : args)) = mapM eval args >>= func
   where
