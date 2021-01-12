@@ -3,36 +3,43 @@ import Control.Monad.Except ( throwError )
 import Types ( LispVal (..), LispError (..), LispValOrError )
 import Primatives ( primatives )
 
-sugarify :: String -> LispVal -> LispVal
-sugarify symbol val = LispList [LispSymbol symbol, val]
-
-unquote :: LispVal -> LispVal
-unquote val = LispList [LispSymbol "unquote", val]
-
-quasiquote :: LispVal -> LispVal
-quasiquote val = LispList [LispSymbol "quasiquote", val]
-
 evalQuasiquoted :: [LispVal] -> LispValOrError
 evalQuasiquoted =
-  let iter
+  let unquote val = LispList [LispSymbol "unquote", val]
+      unquoteSplicing val = LispList [LispSymbol "unquote-splicing", val]
+      quasiquote val = LispList [LispSymbol "quasiquote", val]
+
+      iter
         :: Integer    -- quasiquote level
         -> [LispVal]  -- accumulator
         -> [LispVal]  -- remaining
         -> LispValOrError
       iter _ acc [] = return $ LispList $ reverse acc
       iter qqDepth acc (LispList [LispSymbol "unquote", unquoted]:xs) =
-        if qqDepth == 1 then doEval else doSemiEval
-        where
-          doEval = case eval unquoted of
-            Left err -> throwError err
-            Right x -> iter qqDepth (x:acc) xs
+        if qqDepth == 1
+        then case eval unquoted of
+          Left err -> throwError err
+          Right x -> iter qqDepth (x:acc) xs
+        else case unquoted of
+          LispList list ->
+            case iter (qqDepth - 1) [] list of
+              Left err -> throwError err
+              Right x -> iter qqDepth (unquote x:acc) xs
+          nonList -> iter qqDepth (unquote nonList:acc) xs
 
-          doSemiEval = case unquoted of
-            LispList list ->
-              case iter (qqDepth - 1) [] list of
-                Left err -> throwError err
-                Right x -> iter qqDepth (unquote x:acc) xs
-            val -> return val
+      iter qqDepth acc (LispList [LispSymbol "unquote-splicing", unquoted]:xs) =
+        if qqDepth == 1
+        then case eval unquoted of
+          Left err -> throwError err
+          Right x -> case x of
+            LispList list -> iter qqDepth (reverse list ++ acc) xs
+            _ -> throwError $ Default "unquote-splicing applied to non-list"
+        else case unquoted of
+          LispList list ->
+            case iter (qqDepth - 1) [] list of
+              Left err -> throwError err
+              Right x -> iter qqDepth (unquoteSplicing x:acc) xs
+          nonList -> iter qqDepth (unquoteSplicing nonList:acc) xs
 
       iter qqDepth acc (LispList [LispSymbol "quasiquote", quasiquoted]:xs) =
         case quasiquoted of
@@ -40,10 +47,11 @@ evalQuasiquoted =
             case iter (qqDepth + 1) [] list of
               Left err -> throwError err
               Right x -> iter qqDepth (quasiquote x:acc) xs
-          val -> return val
+          nonList -> iter qqDepth (quasiquote nonList:acc) xs
 
       iter qqDepth acc (unevaled:xs) = iter qqDepth (unevaled:acc) xs
   in iter 1 []
+
 
 eval :: LispVal -> LispValOrError
 eval val@(LispBool _)        = return val

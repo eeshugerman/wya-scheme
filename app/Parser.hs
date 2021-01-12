@@ -13,6 +13,7 @@ import Types
   )
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
+-- TODO: use `LispError`, not `error`
 
 data Sign = Plus | Minus
 data Radix = Binary | Octal | Decimal | Hex
@@ -187,6 +188,11 @@ parseUnquoted = do
   expr <- P.char ',' >> parseExpr
   return $ LispList [LispSymbol "unquote", expr]
 
+parseUnquotedSplicing :: P.Parser LispVal
+parseUnquotedSplicing = do
+  expr <- P.try $ P.string ",@" >> parseExpr
+  return $ LispList [LispSymbol "unquote-splicing", expr]
+
 parseQuasiquoted :: P.Parser LispVal
 parseQuasiquoted = do
   expr <- P.char '`' >> parseExpr
@@ -208,6 +214,7 @@ parseExpr = parseCharacter
         <|> parseVector
         <|> parseString
         <|> parseQuoted
+        <|> parseUnquotedSplicing
         <|> parseUnquoted
         <|> parseQuasiquoted
         <|> parseListOrDottedList
