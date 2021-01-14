@@ -12,7 +12,7 @@ import Data.Array (listArray)
 
 
 apply :: Parsec.Parser a -> String -> a
-apply parser input = case Parsec.parse parser"[test]" input of
+apply parser input = case Parsec.parse parser "[test]" input of
   Left err -> error $ show err
   Right value -> value
 
