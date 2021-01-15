@@ -17,30 +17,21 @@ evalQuasiquoted (LispList list') =
 
       iter qqDepth _ [LispSymbol "unquote", val] =
         if qqDepth == 1
-        then case eval val of
-          Left err -> throwError err
-          Right val' -> return val'
+        then eval val
         else case val of
-          LispList list ->
-            case iter (qqDepth - 1) [] list of
-              Left err -> throwError err
-              Right val' -> return $ unquote val'
+          LispList list -> unquote <$> iter (qqDepth - 1) [] list
           nonList -> return $ unquote nonList
 
       -- TODO: unquote-splicing
 
       iter qqDepth _ [LispSymbol "quasiquote", val] =
         case val of
-          LispList list ->
-            case iter (qqDepth + 1) [] list of
-              Left err -> throwError err
-              Right val' -> return $ quasiquote val'
+          LispList list -> quasiquote <$> iter (qqDepth + 1) [] list
           nonList -> return $ quasiquote nonList
 
-      iter qqDepth acc (LispList list:xs) =
-        case iter qqDepth [] list of
-          Left err -> throwError err
-          Right val -> iter qqDepth (val:acc) xs
+      iter qqDepth acc (LispList list:xs) = do
+        scannedList <- iter qqDepth [] list
+        iter qqDepth (scannedList:acc) xs
 
       iter qqDepth acc (x:xs) = iter qqDepth (x:acc) xs
 

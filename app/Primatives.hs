@@ -43,17 +43,13 @@ numericBinOp
   -> ([LispVal] -> LispValOrError )
 numericBinOp _ []              = throwError $ NumArgs 2 []
 numericBinOp _ singleVal@[_]   = throwError $ NumArgs 2 singleVal
-numericBinOp op (arg:args)     = foldlEither wrappedOp arg args
+numericBinOp op args           = foldl1M wrappedOp args
   where
-    foldlEither
-      :: (LispVal -> LispVal -> LispValOrError) -- wrappedOp
-      -> LispVal                                -- acc/initial
-      -> [LispVal]                              -- args/rest
-      -> LispValOrError                         -- result
-    foldlEither _ acc [] = return acc
-    foldlEither f acc (x:xs) = case f acc x of
-      Left err -> throwError err
-      Right val -> foldlEither f val xs
+    foldl1M f (x:xs) = foldlM f x xs
+    foldl1M _ [] = error "internal error in foldl1M"
+
+    foldlM _ acc [] = return acc
+    foldlM f acc (x:xs) = f acc x >>= \ acc' -> foldlM f acc' xs
 
     wrappedOp :: LispVal -> LispVal -> LispValOrError
     wrappedOp (LispNumber a) (LispNumber b) = return $ LispNumber $ op a b
