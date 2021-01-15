@@ -76,9 +76,26 @@ primativeTests = testFactory unpackVal
     )
   ]
 
+ifTests = testFactory unpackVal
+  [ (LispList [LispSymbol "if", lTrue, lOne, lTwo],  lOne)
+  , (LispList [LispSymbol "if", lFalse, lOne, lTwo], lTwo)
+
+  , ( LispList [ LispSymbol "if"
+              , LispList [LispSymbol "=", lOne, lOne]
+              , lOne, lTwo],
+      lOne
+    )
+  , ( LispList [ LispSymbol "if"
+              , LispList [LispSymbol "=", lOne, lTwo]
+              , lOne, lTwo],
+      lTwo
+    )
+  ]
+
 tests = TestLabel "EVAL" $ TestList
   [ TestLabel "ATOMIC"     atomicTests
   , TestLabel "QUOTE"      quoteTests
   , TestLabel "QUASIQUOTE" qquoteTests
   , TestLabel "PRIMATIVE"  primativeTests
+  , TestLabel "IF"         ifTests
   ]

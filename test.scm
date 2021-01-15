@@ -2,5 +2,8 @@
   ,(* 2 3+1.5i)
   ,(symbol? 'foo)
   `(1 ,"foo" ,(2 ,(/ 1.0 5)))
-  "bar"
+  ,(string=? "foo" "bar")
+  ,(string=? "foo" "foo")
+  ,(= 1 1)
+  ,(= 1 1.0)
   )

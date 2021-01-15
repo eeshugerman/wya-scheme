@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Eval where
 import Control.Monad.Except ( throwError )
 import Types ( LispVal (..), LispError (..), LispValOrError )
@@ -50,6 +51,11 @@ eval val@(LispNumber _)      = return val
 
 eval (LispList [LispSymbol "quote", val]) = return val
 eval (LispList [LispSymbol "quasiquote", val]) = evalQuasiquoted val
+
+eval (LispList [LispSymbol "if", predicate, consq, alt]) =
+  eval predicate >>= \case
+    LispBool False -> eval alt
+    _  -> eval consq
 
 eval (LispList (LispSymbol funcName : args)) = mapM eval args >>= func
   where
