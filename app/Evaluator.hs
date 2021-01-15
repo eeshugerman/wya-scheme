@@ -4,9 +4,8 @@ import Types ( LispVal (..), LispError (..), LispValOrError )
 import Primatives ( primatives )
 
 evalQuasiquoted :: LispVal -> LispValOrError
-evalQuasiquoted (LispList fullList) =
+evalQuasiquoted (LispList list') =
   let unquote val = LispList [LispSymbol "unquote", val]
-      unquoteSplicing val = LispList [LispSymbol "unquote-splicing", val]
       quasiquote val = LispList [LispSymbol "quasiquote", val]
 
       iter
@@ -15,42 +14,35 @@ evalQuasiquoted (LispList fullList) =
         -> [LispVal]  -- remaining
         -> LispValOrError
       iter _ acc [] = return $ LispList $ reverse acc
-      iter qqDepth acc (LispList [LispSymbol "unquote", val]:xs) =
+
+      iter qqDepth _ [LispSymbol "unquote", val] =
         if qqDepth == 1
         then case eval val of
           Left err -> throwError err
-          Right x -> iter qqDepth (x:acc) xs
+          Right val' -> return val'
         else case val of
           LispList list ->
             case iter (qqDepth - 1) [] list of
               Left err -> throwError err
-              Right x -> iter qqDepth (unquote x:acc) xs
-          nonList -> iter qqDepth (unquote nonList:acc) xs
+              Right val' -> return $ unquote val'
+          nonList -> return $ unquote nonList
 
-      iter qqDepth acc (LispList [LispSymbol "unquote-splicing", val]:xs) =
-        if qqDepth == 1
-        then case eval val of
-          Left err -> throwError err
-          Right x -> case x of
-            LispList list -> iter qqDepth (reverse list ++ acc) xs
-            _ -> throwError $ Default "unquote-splicing applied to non-list"
-        else case val of
-          LispList list ->
-            case iter (qqDepth - 1) [] list of
-              Left err -> throwError err
-              Right x -> iter qqDepth (unquoteSplicing x:acc) xs
-          nonList -> iter qqDepth (unquoteSplicing nonList:acc) xs
-
-      iter qqDepth acc (LispList [LispSymbol "quasiquote", val]:xs) =
+      iter qqDepth _ [LispSymbol "quasiquote", val] =
         case val of
           LispList list ->
             case iter (qqDepth + 1) [] list of
               Left err -> throwError err
-              Right x -> iter qqDepth (quasiquote x:acc) xs
-          nonList -> iter qqDepth (quasiquote nonList:acc) xs
+              Right val' -> return $ quasiquote val'
+          nonList -> return $ quasiquote nonList
 
-      iter qqDepth acc (unevaled:xs) = iter qqDepth (unevaled:acc) xs
-  in iter 1 [] fullList
+      iter qqDepth acc (LispList list:xs) =
+        case iter qqDepth [] list of
+          Left err -> throwError err
+          Right val -> iter qqDepth (val:acc) xs
+
+      iter qqDepth acc (x:xs) = iter qqDepth (x:acc) xs
+
+  in iter 1 [] list'
 
 evalQuasiquoted val = return val
 

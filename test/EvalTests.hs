@@ -24,7 +24,7 @@ lTrue = LispBool True
 lFalse = LispBool False
 lOne = LispNumber $ LispInteger 1
 lTwo = LispNumber $ LispInteger 2
-lThree = LispNumber $ LispInteger 2
+lThree = LispNumber $ LispInteger 3
 
 atomicTests = testFactory unpackVal
   [ (lTrue,                                 lTrue)
@@ -45,6 +45,7 @@ quoteTests = testFactory unpackVal
   , (qquote $ LispList [LispSymbol "foo"],  LispList [LispSymbol "foo"])
   ]
 
+-- TODO: maybe just parse scheme for these
 qquoteTests = testFactory unpackVal
   [
     ( qquote $ unquote $ LispList [LispSymbol "+", lOne, lOne]
@@ -58,7 +59,7 @@ qquoteTests = testFactory unpackVal
     )
 
   , ( qquote $ qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
-    , qquote $ LispList [LispSymbol "+" , lOne, lOne]
+    , qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
     )
   ]
 
