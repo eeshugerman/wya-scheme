@@ -1,10 +1,12 @@
+{-# LANGUAGE LambdaCase #-}
 module Primatives ( primatives ) where
 import Control.Monad.Except ( throwError )
+
 import Types
   ( LispNumber (..)
   , LispVal (..)
   , LispError (..)
-  , LispValOrError
+  , LispValOrError (..)
   )
 
 import Data.Complex (Complex((:+)), realPart, imagPart)
@@ -33,11 +35,74 @@ primatives =
 
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
+
+  , ("=", numBoolBinOp (==))
+  , ("<", numBoolBinOp (<))
+  , (">", numBoolBinOp (>))
+  , ("/=", numBoolBinOp (/=))
+  , (">=", numBoolBinOp (>=))
+  , ("<=", numBoolBinOp (<=))
+  , ("and", boolBoolBinOp (&&))
+  , ("or", boolBoolBinOp (||))
+  , ("string=?", strBoolBinOp (==))
+  , ("string<?", strBoolBinOp (<))
+  , ("string>?", strBoolBinOp (>))
+  , ("string<=?", strBoolBinOp (<=))
+  , ("string>=?", strBoolBinOp (>=))
+
   ]
+
+boolBinOp
+  :: (LispVal -> Either LispError a)  -- unpacker
+  -> (a -> a -> Bool)                 -- op
+  -> [LispVal]                        -- args
+  -> LispValOrError                   -- result
+boolBinOp unpacker op args =
+  if length args /= 2
+  then throwError $ NumArgs 2 args
+  else do left <- unpacker $ args !! 0
+          right <- unpacker $ args !! 1
+          return $ LispBool $ left `op` right
+
+type BoolBinOpBuilder a
+  = (a -> a -> Bool)
+  -> (LispVal -> LispVal -> LispValOrError)
+
+-- numBoolBinOp :: BoolBinOpBuilder Float
+numBoolBinOp = boolBinOp unpackNum
+  where
+    unpackNum :: LispVal -> Either LispError Float
+    unpackNum (LispNumber num) = case num of
+      LispInteger val          -> return $ fromInteger val
+      LispRational numer denom -> return (fromInteger numer / fromInteger denom)
+      LispReal val             -> return val
+      LispComplex _ _          -> throwError $
+        Default "operation not implemented for complex numbers" -- TODO
+    unpackNum nonNum = throwError $ TypeMismatch "number" nonNum
+
+-- boolBoolBinOp :: BoolBinOpBuilder Bool
+boolBoolBinOp = boolBinOp unpackBool
+  where
+    unpackBool :: LispVal -> Either LispError Bool
+    unpackBool (LispBool val) = return val
+    unpackBool nonBool = throwError $ TypeMismatch "boolean" nonBool
+
+-- strBoolBinOp :: BoolBinOpBuilder String
+strBoolBinOp = boolBinOp unpackString
+  where
+    unpackString :: LispVal -> Either LispError String
+    unpackString (LispString val) = return val
+    unpackString nonString = throwError $ TypeMismatch "string" nonString
+
+
+
+
 
 ------------------------------------------
 -- helpers (not actual scheme primatives)
 ------------------------------------------
+
+
 numericBinOp
   :: (LispNumber -> LispNumber -> LispNumber)
   -> ([LispVal] -> LispValOrError )
