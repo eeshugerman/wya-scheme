@@ -1,4 +1,4 @@
-module Evaluator where
+module Eval where
 import Control.Monad.Except ( throwError )
 import Types ( LispVal (..), LispError (..), LispValOrError )
 import Primatives ( primatives )
@@ -26,6 +26,8 @@ evalQuasiquoted (LispList list') =
               Left err -> throwError err
               Right val' -> return $ unquote val'
           nonList -> return $ unquote nonList
+
+      -- TODO: unquote-splicing
 
       iter qqDepth _ [LispSymbol "quasiquote", val] =
         case val of

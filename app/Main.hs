@@ -13,7 +13,7 @@ import Types
   , LispValOrError
   , LispError (ParseError)
   )
-import Evaluator (eval)
+import Eval (eval)
 
 
 strPShow :: LispVal -> String

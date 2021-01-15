@@ -2,7 +2,7 @@ module EvalTests where
 
 import Test.HUnit
 
-import Evaluator
+import Eval
 import Types
 import qualified Primatives as Prim
 
