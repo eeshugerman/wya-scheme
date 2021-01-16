@@ -18,7 +18,7 @@ apply parser input = case Parsec.parse parser "[test]" input of
 
 testFactory :: (Eq a, Show a) => Parsec.Parser a -> [(String, a)] -> Test
 testFactory parser casePairs = TestList $
-  [ TestCase $ assertEqual "" (apply parser a) b
+  [ TestCase $ assertEqual "" b (apply parser a)
   | (a, b) <- casePairs ]
 
 
@@ -194,24 +194,17 @@ dottedListTests = testFactory LP.parseListOrDottedList
 
   , ("(1 . .2)",          LispDottedList [toLispInt 1]  (toLispReal 0.2))
 
-  , ("(1 . (2 3))",       LispDottedList [toLispInt 1]
-                                         (LispList [toLispInt 2, toLispInt 3]))
+  , ("(1 . (2 3))",       LispList [toLispInt 1, toLispInt 2, toLispInt 3])
 
-  , ("(#f . (2 3))",      LispDottedList [LispBool False]
-                                         (LispList [toLispInt 2, toLispInt 3]))
+  , ("(#f . (2 3))",      LispList [LispBool False, toLispInt 2, toLispInt 3])
 
-  , ("(1 2 . 3)",         LispDottedList [toLispInt 1, toLispInt 2]
-                                         (toLispInt 3))
+  , ("(1 2 . 3)",         LispDottedList [toLispInt 1, toLispInt 2] (toLispInt 3))
 
-  , ("(1 .2 . -3)",       LispDottedList [toLispInt 1, toLispReal 0.2]
-                                         (toLispInt (-3)))
+  , ("(1 .2 . -3)",       LispDottedList [toLispInt 1, toLispReal 0.2] (toLispInt (-3)))
 
-  , ("(1 . (2 . 3))" ,    LispDottedList [toLispInt 1]
-                                         (LispDottedList [toLispInt 2]
-                                                         (toLispInt 3)))
-  , ("(1 . (2 . 3/4))",   LispDottedList [toLispInt 1]
-                                         (LispDottedList [toLispInt 2]
-                                                         (toLispRational 3 4)))
+  , ("(1 . (2 . 3))" ,    LispDottedList [toLispInt 1, toLispInt 2] (toLispInt 3))
+
+  , ("(1 . (2 . 3/4))",   LispDottedList [toLispInt 1, toLispInt 2] (toLispRational 3 4))
   ]
 
 makeVector :: [LispVal] -> LispVal

@@ -13,4 +13,6 @@
   (expect "[1,2]" : ,(cons 1 '(2)))
   (expect true    : ,(eqv? 1 1))
   (expect false   : ,(eqv? 1 2))
+  (expect true    : ,(equal? '(1 2 3) '(1 2 3)))
+  (expect false   : ,(equal? '(1 2 3) '(2 2 3)))
   )
