@@ -13,13 +13,13 @@ import Data.Complex (Complex((:+)), realPart, imagPart)
 
 primatives :: [(String, [LispVal] -> LispValOrError)]
 primatives =
-  [ ("+",         numericBinOp add)
-  , ("-",         numericBinOp subtract_)
-  , ("*",         numericBinOp multiply)
-  , ("/",         numericBinOp divide)
-  -- , ("mod",       numericBinOp mod)
-  -- , ("quotient",  numericBinOp quot)
-  -- , ("remainder", numericBinOp rem)
+  [ ("+",         numericFoldableOp add)
+  , ("-",         numericFoldableOp subtract_)
+  , ("*",         numericFoldableOp multiply)
+  , ("/",         numericFoldableOp divide)
+  -- , ("mod",       numericFoldableOp mod)
+  -- , ("quotient",  numericFoldableOp quot)
+  -- , ("remainder", numericFoldableOp rem)
 
   , ("symbol?",      isSymbol)
   , ("boolean?",     isBoolean)
@@ -51,6 +51,33 @@ primatives =
   , ("string>=?", strBoolBinOp (>=))
 
   ]
+
+
+
+
+
+
+------------------------------------------
+-- helpers (not actual scheme primatives)
+------------------------------------------
+numericFoldableOp
+  :: (LispNumber -> LispNumber -> LispNumber)
+  -> ([LispVal] -> LispValOrError )
+numericFoldableOp _ []              = throwError $ NumArgs 2 []
+numericFoldableOp _ singleVal@[_]   = throwError $ NumArgs 2 singleVal
+numericFoldableOp op args           = foldl1M wrappedOp args
+  where
+    foldl1M f (x:xs) = foldlM f x xs
+    foldl1M _ [] = error "internal error in foldl1M"
+
+    foldlM _ acc [] = return acc
+    foldlM f acc (x:xs) = f acc x >>= \ acc' -> foldlM f acc' xs
+
+    wrappedOp :: LispVal -> LispVal -> LispValOrError
+    wrappedOp (LispNumber a) (LispNumber b) = return $ LispNumber $ op a b
+    wrappedOp a              (LispNumber _) = throwError $ TypeMismatch "number" a
+    wrappedOp (LispNumber _) b              = throwError $ TypeMismatch "number" b
+    wrappedOp a              _              = throwError $ TypeMismatch "number" a
 
 boolBinOp
   :: (LispVal -> Either LispError a)  -- unpacker
@@ -94,33 +121,6 @@ strBoolBinOp = boolBinOp unpackString
     unpackString (LispString val) = return val
     unpackString nonString = throwError $ TypeMismatch "string" nonString
 
-
-
-
-
-------------------------------------------
--- helpers (not actual scheme primatives)
-------------------------------------------
-
-
-numericBinOp
-  :: (LispNumber -> LispNumber -> LispNumber)
-  -> ([LispVal] -> LispValOrError )
-numericBinOp _ []              = throwError $ NumArgs 2 []
-numericBinOp _ singleVal@[_]   = throwError $ NumArgs 2 singleVal
-numericBinOp op args           = foldl1M wrappedOp args
-  where
-    foldl1M f (x:xs) = foldlM f x xs
-    foldl1M _ [] = error "internal error in foldl1M"
-
-    foldlM _ acc [] = return acc
-    foldlM f acc (x:xs) = f acc x >>= \ acc' -> foldlM f acc' xs
-
-    wrappedOp :: LispVal -> LispVal -> LispValOrError
-    wrappedOp (LispNumber a) (LispNumber b) = return $ LispNumber $ op a b
-    wrappedOp a              (LispNumber _) = throwError $ TypeMismatch "number" a
-    wrappedOp (LispNumber _) b              = throwError $ TypeMismatch "number" b
-    wrappedOp a              _              = throwError $ TypeMismatch "number" a
 
 -----------------------------------
 add :: LispNumber  -> LispNumber -> LispNumber
