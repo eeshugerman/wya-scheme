@@ -6,10 +6,11 @@ import Types
   ( LispNumber (..)
   , LispVal (..)
   , LispError (..)
-  , LispValOrError (..)
+  , LispValOrError
   )
 
 import Data.Complex (Complex((:+)), realPart, imagPart)
+import Control.Monad (zipWithM)
 
 primatives :: [(String, [LispVal] -> LispValOrError)]
 primatives =
@@ -55,6 +56,7 @@ primatives =
   , ("cons", cons)
 
   , ("eqv?", eqv)
+  , ("equal?", equal)
   ]
 
 
@@ -359,9 +361,39 @@ eqv [a, b] = return $ LispBool $ case (a, b) of
  (LispNumber a',    LispNumber b') ->
    case (a', b') of
      (LispInteger a'',  LispInteger b'')  -> a'' == b''
-     (LispRational _ _, LispRational _ _) -> True       -- TODO: use the std lib's Ratio
+     (LispRational _ _, LispRational _ _) -> error "not implemented" -- TODO: use the std lib's Ratio
      (LispReal a'',     LispReal b'')     -> a'' == b''
-     (LispComplex _ _, LispComplex _ _)   -> True       -- TODO: use the std lib's Complex
- (_, _)                                   -> False      -- TODO: iterables?
+     (LispComplex _ _, LispComplex _ _)   -> error "not implemented" -- TODO: use the std lib's Complex
+     (_, _)                               -> False
+ (_, _)                                   -> error "not implemented" -- TODO: iterables
 eqv args              = throwError $ NumArgs 2 args
 
+
+-- TODO: this is gross
+isTrue :: LispVal -> Bool
+isTrue (LispBool val) = val
+isTrue _ = False
+
+
+equalLists :: [LispVal] -> [LispVal] -> LispValOrError
+equalLists a b =
+    let allTrue :: [LispVal] -> LispVal
+        allTrue = LispBool . all isTrue
+        lispBools = zipWithM (\ a' b' -> equal [a', b']) a b
+    in fmap allTrue lispBools
+
+
+equal :: [LispVal] -> LispValOrError
+equal []                = throwError $ NumArgs 2 []
+equal singleArg@[_]     = throwError $ NumArgs 2 singleArg
+equal [a, b] = case (a, b) of
+  (LispList a', LispList b') -> equalLists a' b'
+
+  (LispDottedList aBleep aBloop, LispDottedList bBleep bBloop) -> do
+    bleepsEqual <- equalLists aBleep bBleep
+    bloopsEqual <- equal [aBloop, bBloop]
+    return $ LispBool $ isTrue bleepsEqual && isTrue bloopsEqual
+
+  (_, _) -> eqv [a, b]
+
+equal args              = throwError $ NumArgs 2 args

@@ -46,7 +46,7 @@ eval val@(LispCharacter _)   = return val
 eval val@(LispString _)      = return val
 eval val@(LispNumber _)      = return val
 
-eval val@(LispDottedList _ _) = throwError $ BadForm "bad form in pair" val
+eval val@(LispDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
 
 
 -- eval val@(LispVector)
