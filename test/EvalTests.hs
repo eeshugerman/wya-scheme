@@ -15,6 +15,7 @@ testFactory unpacker casePairs = TestList $
   [ TestCase $ assertEqual "" expected (unpacker $ eval input)
   | (input, expected) <- casePairs]
 
+-- TODO: maybe just parse scheme for these
 -- shorthand
 quote val = LispList [LispSymbol "quote", val]
 qquote val = LispList [LispSymbol "quasiquote", val]
@@ -45,7 +46,6 @@ quoteTests = testFactory unpackVal
   , (qquote $ LispList [LispSymbol "foo"],  LispList [LispSymbol "foo"])
   ]
 
--- TODO: maybe just parse scheme for these
 qquoteTests = testFactory unpackVal
   [
     ( qquote $ unquote $ LispList [LispSymbol "+", lOne, lOne]
@@ -60,19 +60,6 @@ qquoteTests = testFactory unpackVal
 
   , ( qquote $ qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
     , qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
-    )
-  ]
-
-primativeTests = testFactory unpackVal
-  [ (LispList [LispSymbol "+", lOne, lOne], lTwo)
-  , (LispList [LispSymbol "+", lOne, lOne, lOne], lThree)
-
-  , (
-      LispList [ LispSymbol "/"
-               , lOne
-               , LispNumber $ LispComplex (LispInteger 1) (LispRational 3 4)
-               ]
-    , LispNumber $ LispComplex (LispReal 0.64) (LispReal (-0.48))
     )
   ]
 
@@ -96,6 +83,5 @@ tests = TestLabel "EVAL" $ TestList
   [ TestLabel "ATOMIC"     atomicTests
   , TestLabel "QUOTE"      quoteTests
   , TestLabel "QUASIQUOTE" qquoteTests
-  , TestLabel "PRIMATIVE"  primativeTests
   , TestLabel "IF"         ifTests
   ]

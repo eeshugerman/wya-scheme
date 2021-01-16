@@ -50,6 +50,9 @@ primatives =
   , ("string<=?", strBoolBinOp (<=))
   , ("string>=?", strBoolBinOp (>=))
 
+  , ("car", car)
+  , ("cdr", cdr)
+  , ("cons", cons)
   ]
 
 
@@ -301,3 +304,37 @@ stringToSymbol :: [LispVal] -> LispValOrError
 stringToSymbol [LispString arg] = return $ LispSymbol arg
 stringToSymbol [arg]            = throwError $ TypeMismatch "string" arg
 stringToSymbol args             = throwError $ NumArgs 1 args
+
+
+-----------------------------------------
+-- list ops
+-----------------------------------------
+
+car :: [LispVal] -> LispValOrError
+car []                        = throwError $ NumArgs 1 []
+car [arg] = case arg of
+  LispList (x:_)             -> return x
+  empty@(LispList [])        -> throwError $ TypeMismatch "pair" empty
+  LispDottedList (x:_) _     -> return x
+  wtf@(LispDottedList [] _)  -> throwError $ TypeMismatch "pair" wtf
+  val                        -> throwError $ TypeMismatch "pair" val
+car args                      = throwError $ NumArgs 1 args
+
+cdr :: [LispVal] -> LispValOrError
+cdr empty@[]                   = throwError $ NumArgs 1 empty
+cdr [arg] = case arg of
+  LispList (_:xs)              -> return $ LispList xs
+  empty@(LispList [])          -> throwError $ TypeMismatch "pair" empty
+  LispDottedList [_] bloop     -> return bloop
+  LispDottedList (_:xs) bloop  -> return $ LispDottedList xs bloop
+  LispDottedList _ bloop       -> return bloop
+  val                          -> throwError  $ TypeMismatch "pair" val
+cdr args                        = throwError $ NumArgs 1 args
+
+cons :: [LispVal] -> LispValOrError
+cons []                              = throwError $ NumArgs 2 []
+cons singleVal@[_]                   = throwError $ NumArgs 2 singleVal
+cons [x, LispList xs]                = return $ LispList (x:xs)
+cons [x, LispDottedList bleep bloop] = return $ LispDottedList (x:bleep) bloop
+cons [_, val]                        = throwError $ TypeMismatch "pair" val
+cons args                            = throwError $ NumArgs 2 args
