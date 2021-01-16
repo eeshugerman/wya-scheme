@@ -96,9 +96,9 @@ boolBinOp unpacker op args =
           right <- unpacker $ args !! 1
           return $ LispBool $ left `op` right
 
-type BoolBinOpBuilder a
-  = (a -> a -> Bool)
-  -> (LispVal -> LispVal -> LispValOrError)
+-- type BoolBinOpBuilder a
+--   = (a -> a -> Bool)
+--   -> (LispVal -> LispVal -> LispValOrError)
 
 -- numBoolBinOp :: BoolBinOpBuilder Float
 numBoolBinOp = boolBinOp unpackNum
@@ -338,7 +338,7 @@ cons []                              = throwError $ NumArgs 2 []
 cons singleArg@[_]                   = throwError $ NumArgs 2 singleArg
 cons [x, LispList xs]                = return $ LispList (x:xs)
 cons [x, LispDottedList bleep bloop] = return $ LispDottedList (x:bleep) bloop
-cons [_, val]                        = throwError $ TypeMismatch "pair" val
+cons [a, b]                          = return $ LispDottedList [a] b
 cons args                            = throwError $ NumArgs 2 args
 
 -----------------------------------------

@@ -168,6 +168,13 @@ parseMaybeDottedListEnd :: P.Parser (Maybe LispVal)
 parseMaybeDottedListEnd =
   P.optionMaybe (P.char '.' >> P.skipMany1 P.space >> parseExpr)
 
+
+simplifyDottedList :: [LispVal] -> LispVal -> LispVal
+simplifyDottedList a b = case b of
+  LispList b'           -> LispList $ a ++ b'
+  LispDottedList ba bb  -> simplifyDottedList (a ++ ba) bb
+  _                     -> LispDottedList a b
+
 parseListOrDottedList :: P.Parser LispVal
 parseListOrDottedList = do
   P.char '('
@@ -176,7 +183,7 @@ parseListOrDottedList = do
   P.char ')'
   return $ case maybeEnd of
     Nothing -> LispList beginning
-    Just end -> LispDottedList beginning end
+    Just end -> simplifyDottedList beginning end
 
 parseQuoted :: P.Parser LispVal
 parseQuoted = do

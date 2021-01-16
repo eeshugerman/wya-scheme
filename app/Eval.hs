@@ -40,14 +40,16 @@ evalQuasiquoted (LispList list') =
 
 evalQuasiquoted val = return val
 
-
 eval :: LispVal -> LispValOrError
 eval val@(LispBool _)        = return val
 eval val@(LispCharacter _)   = return val
 eval val@(LispString _)      = return val
 eval val@(LispNumber _)      = return val
+
+eval val@(LispDottedList _ _) = throwError $ BadForm "bad form in pair" val
+
+
 -- eval val@(LispVector)
--- eval val@(LispDottedList)
 
 eval (LispList [LispSymbol "quote", val]) = return val
 eval (LispList [LispSymbol "quasiquote", val]) = evalQuasiquoted val
@@ -57,11 +59,11 @@ eval (LispList [LispSymbol "if", predicate, consq, alt]) =
     LispBool False -> eval alt
     _  -> eval consq
 
-eval (LispList (LispSymbol funcName : args)) = mapM eval args >>= func
+eval (LispList (LispSymbol procName : args)) = mapM eval args >>= func
   where
     func :: [LispVal] -> LispValOrError
-    func args' = case lookup funcName primatives of
-      Nothing     -> throwError $ NotAFunction "Unknown primitive function" funcName
+    func args' = case lookup procName primatives of
+      Nothing     -> throwError $ UnboundVar "Unknown primitive procedure" procName
       Just func'  -> func' args'
 
 eval form = throwError $ BadForm "Unrecognized form: " form

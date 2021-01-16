@@ -71,7 +71,6 @@ data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
                | ParseError ParseError
                | BadForm String LispVal
-               | NotAFunction String String
                | UnboundVar String String
                | Default String
 
@@ -81,7 +80,6 @@ showLispError :: LispError -> String
 showLispError = \case
   UnboundVar msg varname       -> msg ++ ": " ++ varname
   BadForm msg form             -> msg ++ ": " ++ show form
-  NotAFunction msg func        -> msg ++ ": " ++ show func
   NumArgs expected found       -> "Expected " ++ show expected
                                   ++ " args; found values " ++ unwordsList found
   TypeMismatch expected found  -> "Invalid type: expected " ++ expected

@@ -42,6 +42,7 @@ numericFoldableOpTests = testFactory unpackVal
 listOpsTests = testFactory unpackVal
   [ (LispList [LispSymbol "car", quote $ LispList [lOne, lTwo]],  lOne)
   , (LispList [LispSymbol "cdr", quote $ LispList [lOne, lTwo]],  LispList [lTwo])
+  , (LispList [LispSymbol "cons", lOne, lTwo],   LispDottedList [lOne] lTwo)
   , (LispList [LispSymbol "cons", lOne, quote $ LispList [lTwo]], LispList [lOne, lTwo])
   ]
 
