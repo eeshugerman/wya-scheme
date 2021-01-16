@@ -53,6 +53,8 @@ primatives =
   , ("car", car)
   , ("cdr", cdr)
   , ("cons", cons)
+
+  , ("eqv?", eqv)
   ]
 
 
@@ -67,7 +69,7 @@ numericFoldableOp
   :: (LispNumber -> LispNumber -> LispNumber)
   -> ([LispVal] -> LispValOrError )
 numericFoldableOp _ []              = throwError $ NumArgs 2 []
-numericFoldableOp _ singleVal@[_]   = throwError $ NumArgs 2 singleVal
+numericFoldableOp _ singleArg@[_]   = throwError $ NumArgs 2 singleArg
 numericFoldableOp op args           = foldl1M wrappedOp args
   where
     foldl1M f (x:xs) = foldlM f x xs
@@ -333,8 +335,33 @@ cdr args                        = throwError $ NumArgs 1 args
 
 cons :: [LispVal] -> LispValOrError
 cons []                              = throwError $ NumArgs 2 []
-cons singleVal@[_]                   = throwError $ NumArgs 2 singleVal
+cons singleArg@[_]                   = throwError $ NumArgs 2 singleArg
 cons [x, LispList xs]                = return $ LispList (x:xs)
 cons [x, LispDottedList bleep bloop] = return $ LispDottedList (x:bleep) bloop
 cons [_, val]                        = throwError $ TypeMismatch "pair" val
 cons args                            = throwError $ NumArgs 2 args
+
+-----------------------------------------
+-- equality
+-----------------------------------------
+
+-- TODO
+-- eq :: [LispVal] -> LispValOrError
+
+eqv :: [LispVal] -> LispValOrError
+eqv []                = throwError $ NumArgs 2 []
+eqv singleArg@[_]     = throwError $ NumArgs 2 singleArg
+eqv [a, b] = return $ LispBool $ case (a, b) of
+ (LispSymbol a',    LispSymbol b')    -> a' == b'
+ (LispCharacter a', LispCharacter b') -> a' == b'
+ (LispString a',    LispString b')    -> a' == b'
+ (LispBool a',      LispBool b')      -> a' == b'
+ (LispNumber a',    LispNumber b') ->
+   case (a', b') of
+     (LispInteger a'',  LispInteger b'')  -> a'' == b''
+     (LispRational _ _, LispRational _ _) -> True       -- TODO: use the std lib's Ratio
+     (LispReal a'',     LispReal b'')     -> a'' == b''
+     (LispComplex _ _, LispComplex _ _)   -> True       -- TODO: use the std lib's Complex
+ (_, _)                                   -> False      -- TODO: iterables?
+eqv args              = throwError $ NumArgs 2 args
+

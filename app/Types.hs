@@ -13,9 +13,9 @@ import Text.Parsec ( ParseError )
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map showLispVal
 
-data LispNumber = LispComplex LispNumber LispNumber
+data LispNumber = LispComplex LispNumber LispNumber  -- TODO: use Data.Complex.Complex
                 | LispReal Float
-                | LispRational Integer Integer
+                | LispRational Integer Integer  -- TODO: use Data.Ratio.Rational
                 | LispInteger Integer
                 deriving Eq
 

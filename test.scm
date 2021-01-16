@@ -11,4 +11,6 @@
   (expect "[2]"   : ,(cdr '(1 2)))
   (expect "2"     : ,(cdr '(1 . 2)))
   (expect "[1,2]" : ,(cons 1 '(2)))
+  (expect true    : ,(eqv? 1 1))
+  (expect false   : ,(eqv? 1 2))
   )
