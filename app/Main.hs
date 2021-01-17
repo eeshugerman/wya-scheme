@@ -1,6 +1,7 @@
 module Main where
 import qualified Text.ParserCombinators.Parsec as P
 import System.Environment (getArgs)
+import System.IO (hFlush, stdout)
 
 import Text.Pretty.Simple (pShow)
 import qualified Data.Text as T
@@ -16,26 +17,60 @@ import Types
 import Eval (eval)
 
 
-strPShow :: LispVal -> String
-strPShow = T.unpack . TL.toStrict . pShow
-
 readExpr :: String -> String -> LispValOrError
 readExpr filename input = case P.parse parseExpr filename input of
   Left err -> throwError $ ParseError err
   Right value -> return value
 
-main :: IO ()
-main = do
-  (filename:_) <- getArgs
-  sourceCode <- readFile filename
-  let parsed = readExpr filename sourceCode
-      evaled = parsed >>= eval
-  case evaled of
-    Left err -> print err
+flushStr :: String -> IO ()
+flushStr str = putStr str >> hFlush stdout
+
+readPrompt :: String -> IO String
+readPrompt prompt = flushStr prompt >> getLine
+
+evalAndPrint :: String -> IO ()
+evalAndPrint str = let
+  parsed = readExpr "REPL" str
+  evaled = parsed >>= eval
+  in case evaled of
+    Left  err -> print err
     Right value -> print value
 
+until_ :: Monad m
+  => (a -> Bool) -- predicate
+  -> m a         -- prompt
+  -> (a -> m())  -- action
+  -> m ()
+until_ predicate prompt action = do
+  result <- prompt
+  if predicate result
+    then return ()
+    else action result >> until_ predicate prompt action
 
--- testing / debug helpers
+runRepl :: IO ()
+runRepl = until_
+  (== ",quit")
+  (readPrompt ">>> ")
+  evalAndPrint
+
+evalFile :: FilePath -> IO ()
+evalFile filename = do
+  contents <- readFile filename
+  evalAndPrint contents
+
+main :: IO ()
+main = do
+  args <- getArgs
+  case args of
+    [] -> runRepl
+    [filename] -> evalFile filename
+    _ -> putStrLn "Bad CLI args"
+
+
+-- testing / debug helpers --------------------------------------------------
+strPShow :: LispVal -> String
+strPShow = T.unpack . TL.toStrict . pShow
+
 debugReadExpr :: String -> String
 debugReadExpr input = case P.parse parseExpr "[source]" input of
   Left err -> "No match: " ++ show err
