@@ -98,11 +98,12 @@ boolBinOp unpacker op args =
           right <- unpacker $ args !! 1
           return $ LispBool $ left `op` right
 
--- type BoolBinOpBuilder a
---   = (a -> a -> Bool)
---   -> (LispVal -> LispVal -> LispValOrError)
+type BoolBinOpBuilder a
+  = (a -> a -> Bool)
+  -> [LispVal]
+  -> LispValOrError
 
--- numBoolBinOp :: BoolBinOpBuilder Float
+numBoolBinOp :: BoolBinOpBuilder Float
 numBoolBinOp = boolBinOp unpackNum
   where
     unpackNum :: LispVal -> Either LispError Float
@@ -114,14 +115,14 @@ numBoolBinOp = boolBinOp unpackNum
         Default "operation not implemented for complex numbers" -- TODO
     unpackNum nonNum = throwError $ TypeMismatch "number" nonNum
 
--- boolBoolBinOp :: BoolBinOpBuilder Bool
+boolBoolBinOp :: BoolBinOpBuilder Bool
 boolBoolBinOp = boolBinOp unpackBool
   where
     unpackBool :: LispVal -> Either LispError Bool
     unpackBool (LispBool val) = return val
     unpackBool nonBool = throwError $ TypeMismatch "boolean" nonBool
 
--- strBoolBinOp :: BoolBinOpBuilder String
+strBoolBinOp :: BoolBinOpBuilder String
 strBoolBinOp = boolBinOp unpackString
   where
     unpackString :: LispVal -> Either LispError String

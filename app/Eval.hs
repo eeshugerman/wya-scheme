@@ -75,5 +75,5 @@ eval env (LispList (LispSymbol procName : args)) = do
     Just func -> liftThrows $ func evaledArgs
 
 
-eval _ form = throwError $ BadForm "Unrecognized form: " form
+eval _ form = throwError $ BadForm "Unrecognized form" form
 
