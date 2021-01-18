@@ -227,3 +227,5 @@ parseExpr = parseCharacter
         <|> parseQuasiquoted
         <|> parseListOrDottedList
 
+parseExprs :: P.Parser [LispVal]
+parseExprs = parseExpr `P.endBy` P.spaces

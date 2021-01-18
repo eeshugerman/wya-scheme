@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Control.Monad.Except (runExceptT, throwError)
 
-import Parser (parseExpr)
+import Parser (parseExpr, parseExprs)
 import Types
   ( LispVal
   , LispValOrError
@@ -20,46 +20,61 @@ import Env (nullEnv, Env)
 
 
 readExpr :: String -> String -> LispValOrError
-readExpr filename input = case P.parse parseExpr filename input of
-  Left err -> throwError $ ParseError err
-  Right value -> return value
+readExpr streamName input =
+  case P.parse parseExpr streamName input of
+    Left err -> throwError $ ParseError err
+    Right value -> return value
+
+readExprs :: String -> String -> Either LispError [LispVal]
+readExprs streamName input =
+  case P.parse parseExprs streamName input of
+    Left err -> throwError $ ParseError err
+    Right exprs -> return exprs
 
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
-readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
 
-evalAndPrint :: Env -> String -> IO ()
-evalAndPrint env str =
-  case readExpr "REPL" str of
-    Left err -> print err
-    Right parsed ->
-      runExceptT (eval env parsed) >>= \case
-        Left err' -> print err'
-        Right val' -> print val'
-
-until_ :: Monad m
-  => (a -> Bool) -- predicate
-  -> m a         -- prompt
-  -> (a -> m())  -- action
+loop_ :: Monad m
+  => m a          -- getNext
+  -> (a -> m ())  -- action
   -> m ()
-until_ predicate prompt action = do
-  result <- prompt
-  if predicate result
-    then return ()
-    else action result >> until_ predicate prompt action
+loop_ getNext action = getNext >>= action >> loop_ getNext action
+
 
 runRepl :: IO ()
 runRepl = do
   env <- nullEnv
-  until_ (== ",quit") (readPrompt ">>> ") (evalAndPrint env)
+  loop_ readFromPrompt (evalAndPrint env)
+  where
+    readFromPrompt :: IO LispValOrError
+    readFromPrompt = flushStr ">>> " >> getLine >>= return . readExpr "REPL"
+
+    evalAndPrint :: Env -> LispValOrError -> IO ()
+    evalAndPrint env expr =
+      case expr of
+        Left err -> print err
+        Right valid ->
+          runExceptT (eval env valid) >>= \case
+            Left err' -> print err'
+            Right val' -> print val'
+
 
 evalFile :: FilePath -> IO ()
 evalFile filename = do
   contents <- readFile filename
   env <- nullEnv
-  evalAndPrint env contents
+  case readExprs filename contents of
+    Left err -> print err
+    Right exprs -> mapM_ (evalAndPrint env) exprs
+
+  where
+    evalAndPrint :: Env -> LispVal -> IO ()
+    evalAndPrint env expr =
+      runExceptT (eval env expr) >>= \case
+        Left err' -> print err'
+        Right val' -> print val'
+
 
 main :: IO ()
 main = do

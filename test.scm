@@ -16,3 +16,11 @@
   (expect true    : ,(equal? '(1 2 3) '(1 2 3)))
   (expect false   : ,(equal? '(1 2 3) '(2 2 3)))
   )
+
+(define foo 1)
+
+`(expect 2: ,(+ 1 foo))
+
+(set! foo 2)
+
+`(expect 3: ,(+ 1 foo))
