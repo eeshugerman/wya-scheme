@@ -15,9 +15,6 @@ executables:
     main: Main.hs
     source-dirs: app
     ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
       - -Wall
       - -Wno-unused-do-bind
 
@@ -27,7 +24,3 @@ tests:
     source-dirs:
       - app
       - test
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
