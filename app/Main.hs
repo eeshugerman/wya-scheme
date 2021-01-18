@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Main where
 import qualified Text.ParserCombinators.Parsec as P
 import System.Environment (getArgs)
@@ -6,7 +7,7 @@ import System.IO (hFlush, stdout)
 import Text.Pretty.Simple (pShow)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr)
 import Types
@@ -15,6 +16,7 @@ import Types
   , LispError (ParseError)
   )
 import Eval (eval)
+import Env (nullEnv, Env)
 
 
 readExpr :: String -> String -> LispValOrError
@@ -28,13 +30,14 @@ flushStr str = putStr str >> hFlush stdout
 readPrompt :: String -> IO String
 readPrompt prompt = flushStr prompt >> getLine
 
-evalAndPrint :: String -> IO ()
-evalAndPrint str = let
-  parsed = readExpr "REPL" str
-  evaled = parsed >>= eval
-  in case evaled of
-    Left  err -> print err
-    Right value -> print value
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env str =
+  case readExpr "REPL" str of
+    Left err -> print err
+    Right parsed ->
+      runExceptT (eval env parsed) >>= \case
+        Left err' -> print err'
+        Right val' -> print val'
 
 until_ :: Monad m
   => (a -> Bool) -- predicate
@@ -48,15 +51,15 @@ until_ predicate prompt action = do
     else action result >> until_ predicate prompt action
 
 runRepl :: IO ()
-runRepl = until_
-  (== ",quit")
-  (readPrompt ">>> ")
-  evalAndPrint
+runRepl = do
+  env <- nullEnv
+  until_ (== ",quit") (readPrompt ">>> ") (evalAndPrint env)
 
 evalFile :: FilePath -> IO ()
 evalFile filename = do
   contents <- readFile filename
-  evalAndPrint contents
+  env <- nullEnv
+  evalAndPrint env contents
 
 main :: IO ()
 main = do
@@ -83,4 +86,3 @@ applyParser parser input = putStrLn $ case P.parse parser "[test]" input of
 
 printReadExpr :: String -> IO ()
 printReadExpr input = putStrLn $ debugReadExpr input
-

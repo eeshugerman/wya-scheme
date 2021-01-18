@@ -71,14 +71,14 @@ data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
                | ParseError ParseError
                | BadForm String LispVal
-               | UnboundVar String String
+               | UnboundVar String
                | Default String
 
 instance Show LispError where show = showLispError
 
 showLispError :: LispError -> String
 showLispError = \case
-  UnboundVar msg varname       -> msg ++ ": " ++ varname
+  UnboundVar varname           -> "Unbound variable: " ++ varname
   BadForm msg form             -> msg ++ ": " ++ show form
   NumArgs expected found       -> "Expected " ++ show expected
                                   ++ " args; found values " ++ unwordsList found
