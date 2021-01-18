@@ -3,7 +3,14 @@ module Eval where
 import Control.Monad.Except (MonadIO(liftIO),  throwError )
 import Types ( LispVal (..), LispError (..) )
 import Primatives ( primatives )
-import Env(IOLispValOrError, Env, setVar, defineVar, liftThrows)
+import Env
+  ( IOLispValOrError,
+    Env,
+    getVar,
+    setVar,
+    defineVar,
+    liftThrows
+  )
 
 evalQuasiquoted :: Env -> LispVal -> IOLispValOrError 
 evalQuasiquoted env (LispList list') =
@@ -47,6 +54,8 @@ eval _ val@(LispCharacter _)   = return val
 eval _ val@(LispString _)      = return val
 eval _ val@(LispNumber _)      = return val
 
+eval env (LispSymbol varName)  = getVar env varName
+
 eval _ val@(LispDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
 -- eval val@(LispVector)
 
@@ -68,12 +77,11 @@ eval env (LispList [LispSymbol "define", LispSymbol varName, form]) =
      liftIO $ defineVar env varName val
      return $ LispList []
 
-eval env (LispList (LispSymbol procName : args)) = do
-  evaledArgs <- mapM (eval env) args
-  case lookup procName primatives of
-    Nothing -> throwError $ UnboundVar procName
-    Just func -> liftThrows $ func evaledArgs
-
+eval env (LispList (LispSymbol procName : args)) =
+  do evaledArgs <- mapM (eval env) args
+     case lookup procName primatives of
+       Nothing -> throwError $ UnboundVar procName
+       Just primProc -> liftThrows $ primProc evaledArgs
 
 eval _ form = throwError $ BadForm "Unrecognized form" form
 
