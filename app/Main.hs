@@ -6,10 +6,11 @@ import System.IO (hFlush, stdout)
 import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr, parseExprs)
-import Env (nullEnv, Env)
 import Eval (eval)
 import Types
-  ( LispVal
+  ( Env
+  , nullEnv
+  , LispVal
   , LispValOrError
   , LispError (ParseError)
   )

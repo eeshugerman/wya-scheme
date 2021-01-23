@@ -1,12 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 module Eval where
 import Control.Monad.Except (ExceptT, MonadIO(liftIO),  throwError )
 import Types ( LispVal (..), LispError (..), Env )
 import Primatives ( primatives )
 import Data.IORef (writeIORef, readIORef, newIORef)
-
-nullEnv :: IO Env
-nullEnv = newIORef []
+import Data.Maybe (isNothing)
 
 -- IO LispVal with LispError exceptions
 type IOLispValOrError = ExceptT LispError IO LispVal
@@ -45,6 +44,9 @@ extendFrom baseEnvRef bindings = do
   envRef <- newIORef baseEnvMap
   mapM_ (uncurry $ defineVar envRef) bindings
   return envRef
+
+
+
 
 evalQuasiquoted :: Env -> LispVal -> IOLispValOrError
 evalQuasiquoted env (LispList list') =
@@ -112,12 +114,32 @@ eval env (LispList [LispSymbol "define", LispSymbol varName, form]) =
      return $ LispList []
 
 eval env (LispList (LispSymbol procName : args)) =
-  do evaledArgs <- mapM (eval env) args
-     case lookup procName primatives of
-       Nothing -> throwError $ UnboundVar procName
-       Just primProc -> case primProc evaledArgs of
-         Left err -> throwError err
-         Right val -> return val
+  do proc' <- getVar env procName
+     evaledArgs <- mapM (eval env) args
+     case proc' of
+       -- TODO: factor out into `apply` primative
+       LispPrimitiveProc primProc -> primProc evaledArgs
+       LispProc { procParams = params
+                , procVarParams = varParams
+                , procBody = body
+                , procClosure = closure
+                } ->
+         let numParams = toInteger $ length params
+             numArgs = toInteger $ length args
+         in if
+           | numParams > numArgs
+             -> throwError $ NumArgs numParams args
+           | numParams < numArgs && isNothing varParams
+             -> throwError $ NumArgs numParams args
+           | otherwise
+           -> let remainingArgs = drop numParams args
+                  paramsArgsMap = zip params args ++ case varParams of
+                    Just varParamName -> [(varParamName, LispList remainingArgs)]
+                    Nothing           -> []
+                  extendedEnv = extendFrom closure paramsArgsMap
+              in last <$> mapM (eval extendedEnv) body
+
+       nonProc           -> throwError $ TypeMismatch "procedure" nonProc
 
 
 

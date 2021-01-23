@@ -5,14 +5,10 @@ module Types
   , LispError (..)
   , LispValOrError
   , Env
+  , nullEnv
   ) where
 
 import Data.IORef
-import Control.Monad.Except
-  ( MonadError(throwError)
-  , MonadIO(liftIO)
-  , ExceptT
-  )
 import qualified Data.Array as A
 import Text.Parsec ( ParseError )
 
@@ -57,7 +53,12 @@ data LispVal = LispSymbol String
              | LispList [LispVal]
              | LispVector (A.Array Int LispVal)
              | LispDottedList [LispVal] LispVal
-             deriving Eq
+             | LispPrimitiveProc ([LispVal] -> LispValOrError)
+             | LispProc { procParams    :: [String]
+                        , procVarParams :: Maybe String
+                        , procBody      :: [LispVal]
+                        , procClosure   :: Env
+                        }
 
 instance Show LispVal where show = showLispVal
 
@@ -72,6 +73,13 @@ showLispVal = \case
   LispList val             -> "(" ++ unwordsList val ++ ")"
   LispVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
   LispDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
+  LispPrimitiveProc _      -> "<primative>"
+  LispProc {procParams=params, procVarParams=varParams} ->
+    "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
+    where showVarArgs = case varParams of
+            Nothing -> ""
+            Just val  -> ". " ++ val
+
 
 
 data LispError = NumArgs Integer [LispVal]
@@ -99,3 +107,5 @@ type LispValOrError = Either LispError LispVal
 
 type Env = IORef [(String, IORef LispVal)]
 
+nullEnv :: IO Env
+nullEnv = newIORef []
