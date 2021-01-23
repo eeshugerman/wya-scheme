@@ -1,18 +1,52 @@
 {-# LANGUAGE LambdaCase #-}
 module Eval where
-import Control.Monad.Except (MonadIO(liftIO),  throwError )
-import Types ( LispVal (..), LispError (..) )
+import Control.Monad.Except (ExceptT, MonadIO(liftIO),  throwError )
+import Types ( LispVal (..), LispError (..), Env )
 import Primatives ( primatives )
-import Env
-  ( IOLispValOrError,
-    Env,
-    getVar,
-    setVar,
-    defineVar,
-    liftThrows
-  )
+import Data.IORef (writeIORef, readIORef, newIORef)
 
-evalQuasiquoted :: Env -> LispVal -> IOLispValOrError 
+nullEnv :: IO Env
+nullEnv = newIORef []
+
+-- IO LispVal with LispError exceptions
+type IOLispValOrError = ExceptT LispError IO LispVal
+type IONilOrError = ExceptT LispError IO ()
+
+getVar :: Env -> String -> IOLispValOrError
+getVar envRef varName = do
+  envMap <- liftIO $ readIORef envRef
+  case lookup varName envMap of
+    Nothing -> throwError $ UnboundVar varName
+    Just varRef -> liftIO $ readIORef varRef
+
+
+setVar :: Env -> String -> LispVal -> IONilOrError
+setVar envRef varName val = do
+  envMap <- liftIO $ readIORef envRef
+  case lookup varName envMap of
+    Nothing -> throwError $ UnboundVar varName
+    Just varRef -> liftIO $ writeIORef varRef val
+
+
+defineVar :: Env -> String -> LispVal -> IO ()
+defineVar envRef varName val = do
+  envMap <- readIORef envRef
+  case lookup varName envMap of
+    Nothing -> do
+      varRef <- newIORef val
+      liftIO $ writeIORef envRef ((varName, varRef):envMap)
+    Just varRef -> writeIORef varRef val
+
+
+-- TODO: untested, might not work
+extendFrom :: Env -> [(String, LispVal)] -> IO Env
+extendFrom baseEnvRef bindings = do
+  baseEnvMap <- readIORef baseEnvRef
+  envRef <- newIORef baseEnvMap
+  mapM_ (uncurry $ defineVar envRef) bindings
+  return envRef
+
+evalQuasiquoted :: Env -> LispVal -> IOLispValOrError
 evalQuasiquoted env (LispList list') =
   let unquote val = LispList [LispSymbol "unquote", val]
       quasiquote val = LispList [LispSymbol "quasiquote", val]
@@ -81,7 +115,11 @@ eval env (LispList (LispSymbol procName : args)) =
   do evaledArgs <- mapM (eval env) args
      case lookup procName primatives of
        Nothing -> throwError $ UnboundVar procName
-       Just primProc -> liftThrows $ primProc evaledArgs
+       Just primProc -> case primProc evaledArgs of
+         Left err -> throwError err
+         Right val -> return val
+
+
 
 eval _ form = throwError $ BadForm "Unrecognized form" form
 

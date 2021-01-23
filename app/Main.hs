@@ -3,21 +3,16 @@ module Main where
 import qualified Text.ParserCombinators.Parsec as P
 import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
-
-import Text.Pretty.Simple (pShow)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
 import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr, parseExprs)
+import Env (nullEnv, Env)
+import Eval (eval)
 import Types
   ( LispVal
   , LispValOrError
   , LispError (ParseError)
   )
-import Eval (eval)
-import Env (nullEnv, Env)
-
 
 readExpr :: String -> String -> LispValOrError
 readExpr streamName input =
@@ -31,11 +26,8 @@ readExprs streamName input =
     Left err -> throwError $ ParseError err
     Right exprs -> return exprs
 
-flushStr :: String -> IO ()
-flushStr str = putStr str >> hFlush stdout
-
-
-loop_ :: Monad m
+loop_
+  :: Monad m
   => m a          -- getNext
   -> (a -> m ())  -- action
   -> m ()
@@ -48,16 +40,18 @@ runRepl = do
   loop_ readFromPrompt (evalAndPrint env)
   where
     readFromPrompt :: IO LispValOrError
-    readFromPrompt = flushStr ">>> " >> getLine >>= return . readExpr "REPL"
+    readFromPrompt = putStr ">>> "
+                  >> hFlush stdout
+                  >> getLine
+                 >>= return . readExpr "REPL"
 
     evalAndPrint :: Env -> LispValOrError -> IO ()
-    evalAndPrint env expr =
-      case expr of
-        Left err -> print err
-        Right valid ->
-          runExceptT (eval env valid) >>= \case
-            Left err' -> print err'
-            Right val' -> print val'
+    evalAndPrint env expr = case expr of
+      Left err -> print err
+      Right valid ->
+        runExceptT (eval env valid) >>= \case
+          Left err' -> print err'
+          Right val' -> print val'
 
 
 evalFile :: FilePath -> IO ()
@@ -67,7 +61,6 @@ evalFile filename = do
   case readExprs filename contents of
     Left err -> print err
     Right exprs -> mapM_ (evalAndPrint env) exprs
-
   where
     evalAndPrint :: Env -> LispVal -> IO ()
     evalAndPrint env expr =
@@ -83,21 +76,3 @@ main = do
     [] -> runRepl
     [filename] -> evalFile filename
     _ -> putStrLn "Bad CLI args"
-
-
--- testing / debug helpers --------------------------------------------------
-strPShow :: LispVal -> String
-strPShow = T.unpack . TL.toStrict . pShow
-
-debugReadExpr :: String -> String
-debugReadExpr input = case P.parse parseExpr "[source]" input of
-  Left err -> "No match: " ++ show err
-  Right value -> strPShow value
-
-applyParser :: P.Parser LispVal -> String -> IO ()
-applyParser parser input = putStrLn $ case P.parse parser "[test]" input of
-  Left err -> "No match: " ++ show err
-  Right value -> "Found value: " ++ strPShow value
-
-printReadExpr :: String -> IO ()
-printReadExpr input = putStrLn $ debugReadExpr input

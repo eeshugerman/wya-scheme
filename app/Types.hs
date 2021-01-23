@@ -4,8 +4,15 @@ module Types
   , LispVal (..)
   , LispError (..)
   , LispValOrError
+  , Env
   ) where
 
+import Data.IORef
+import Control.Monad.Except
+  ( MonadError(throwError)
+  , MonadIO(liftIO)
+  , ExceptT
+  )
 import qualified Data.Array as A
 import Text.Parsec ( ParseError )
 
@@ -89,3 +96,6 @@ showLispError = \case
 
 
 type LispValOrError = Either LispError LispVal
+
+type Env = IORef [(String, IORef LispVal)]
+
