@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Primatives ( primatives ) where
+module Primitives ( primitives ) where
 import Control.Monad.Except ( throwError )
 
 import Types
@@ -12,8 +12,8 @@ import Types
 import Data.Complex (Complex((:+)), realPart, imagPart)
 import Control.Monad (zipWithM)
 
-primatives :: [(String, [LispVal] -> LispValOrError)]
-primatives =
+primitives :: [(String, [LispVal] -> LispValOrError)]
+primitives =
   [ ("+",         numericFoldableOp add)
   , ("-",         numericFoldableOp subtract_)
   , ("*",         numericFoldableOp multiply)
@@ -65,7 +65,7 @@ primatives =
 
 
 ------------------------------------------
--- helpers (not actual scheme primatives)
+-- helpers (not actual scheme primitives)
 ------------------------------------------
 numericFoldableOp
   :: (LispNumber -> LispNumber -> LispNumber)

@@ -4,7 +4,7 @@ import Test.HUnit
 
 import Eval
 import Types
-import qualified Primatives as Prim
+import qualified Primitives as Prim
 
 unpackVal :: LispValOrError -> LispVal
 unpackVal (Left err) = error $ "unexpected error: " ++ show err

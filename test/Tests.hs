@@ -2,10 +2,10 @@ import Test.HUnit
 
 import qualified ParserTests
 import qualified EvalTests
-import qualified PrimativesTests
+import qualified PrimitivesTests
 
 main = do runTestTTAndExit $ TestList
             [ ParserTests.tests
             , EvalTests.tests
-            , PrimativesTests.tests
+            , PrimitivesTests.tests
             ]

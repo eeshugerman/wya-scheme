@@ -1,16 +1,16 @@
-module PrimativesTests where
+module PrimitivesTests where
 
 import Test.HUnit
 
 import Eval
 import Types
-import qualified Primatives as Prim
+import qualified Primitives as Prim
 
 testFactory
   :: [(String, [LispVal], LispVal)]    -- procName, args, expected
   -> Test
 testFactory casePairs = TestList
-  [ case lookup procName Prim.primatives of
+  [ case lookup procName Prim.primitives of
       Nothing -> error $ "unknown primative: " ++ procName
       Just primProc ->
         case primProc args of
