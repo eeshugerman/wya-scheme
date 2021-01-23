@@ -6,7 +6,7 @@ import System.IO (hFlush, stdout)
 import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr, parseExprs)
-import Eval (eval)
+import Eval (eval, extendFrom)
 import Types
   ( Env
   , nullEnv
@@ -14,6 +14,7 @@ import Types
   , LispValOrError
   , LispError (ParseError)
   )
+import Primitives (primitives)
 
 readExpr :: String -> String -> LispValOrError
 readExpr streamName input =
@@ -34,10 +35,12 @@ loop_
   -> m ()
 loop_ getNext action = getNext >>= action >> loop_ getNext action
 
+primitiveEnv :: IO Env
+primitiveEnv = nullEnv >>= flip extendFrom primitives
 
 runRepl :: IO ()
 runRepl = do
-  env <- nullEnv
+  env <- primitiveEnv
   loop_ readFromPrompt (evalAndPrint env)
   where
     readFromPrompt :: IO LispValOrError
@@ -58,7 +61,7 @@ runRepl = do
 evalFile :: FilePath -> IO ()
 evalFile filename = do
   contents <- readFile filename
-  env <- nullEnv
+  env <- primitiveEnv
   case readExprs filename contents of
     Left err -> print err
     Right exprs -> mapM_ (evalAndPrint env) exprs

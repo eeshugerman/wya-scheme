@@ -12,8 +12,8 @@ import Types
 import Data.Complex (Complex((:+)), realPart, imagPart)
 import Control.Monad (zipWithM)
 
-primitives :: [(String, [LispVal] -> LispValOrError)]
-primitives =
+primitives :: [(String, LispVal)]
+primitives = map (\ (name, f) -> (name, LispPrimitiveProc f))
   [ ("+",         numericFoldableOp add)
   , ("-",         numericFoldableOp subtract_)
   , ("*",         numericFoldableOp multiply)

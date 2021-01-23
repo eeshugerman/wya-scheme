@@ -1,15 +1,18 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
 module Eval where
 import Control.Monad.Except (ExceptT, MonadIO(liftIO),  throwError )
-import Types ( LispVal (..), LispError (..), Env )
-import Primatives ( primatives )
+import Types (LispValOrError,  LispVal (..), LispError (..), Env )
 import Data.IORef (writeIORef, readIORef, newIORef)
 import Data.Maybe (isNothing)
 
 -- IO LispVal with LispError exceptions
 type IOLispValOrError = ExceptT LispError IO LispVal
 type IONilOrError = ExceptT LispError IO ()
+
+liftThrows :: LispValOrError -> IOLispValOrError
+liftThrows = \case
+  Left err -> throwError err
+  Right val -> return val
 
 getVar :: Env -> String -> IOLispValOrError
 getVar envRef varName = do
@@ -37,14 +40,13 @@ defineVar envRef varName val = do
     Just varRef -> writeIORef varRef val
 
 
--- TODO: untested, might not work
+-- TODO: move this somewhere that makes more sense
 extendFrom :: Env -> [(String, LispVal)] -> IO Env
 extendFrom baseEnvRef bindings = do
   baseEnvMap <- readIORef baseEnvRef
   envRef <- newIORef baseEnvMap
   mapM_ (uncurry $ defineVar envRef) bindings
   return envRef
-
 
 
 
@@ -57,7 +59,7 @@ evalQuasiquoted env (LispList list') =
         :: Integer    -- quasiquote level
         -> [LispVal]  -- accumulator
         -> [LispVal]  -- remaining
-        -> IOLispValOrError 
+        -> IOLispValOrError
       iter _ acc [] = return $ LispList $ reverse acc
 
       iter qqDepth _ [LispSymbol "unquote", val] =
@@ -117,27 +119,26 @@ eval env (LispList (LispSymbol procName : args)) =
   do proc' <- getVar env procName
      evaledArgs <- mapM (eval env) args
      case proc' of
-       -- TODO: factor out into `apply` primative
-       LispPrimitiveProc primProc -> primProc evaledArgs
+       -- TODO: factor out into `apply` primative ?
+       LispPrimitiveProc primProc -> liftThrows $ primProc evaledArgs
        LispProc { procParams = params
                 , procVarParams = varParams
                 , procBody = body
                 , procClosure = closure
                 } ->
-         let numParams = toInteger $ length params
+         let numParams' = length params
+             numParams = toInteger numParams'
              numArgs = toInteger $ length args
-         in if
-           | numParams > numArgs
-             -> throwError $ NumArgs numParams args
-           | numParams < numArgs && isNothing varParams
-             -> throwError $ NumArgs numParams args
-           | otherwise
-           -> let remainingArgs = drop numParams args
+         in if (numParams > numArgs) || (numParams < numArgs && isNothing varParams)
+            then
+              throwError $ NumArgs numParams args
+            else
+              let remainingArgs = drop numParams' args
                   paramsArgsMap = zip params args ++ case varParams of
                     Just varParamName -> [(varParamName, LispList remainingArgs)]
                     Nothing           -> []
-                  extendedEnv = extendFrom closure paramsArgsMap
-              in last <$> mapM (eval extendedEnv) body
+              in do procEnv <- liftIO $ extendFrom closure paramsArgsMap
+                    last $ map (eval procEnv) body
 
        nonProc           -> throwError $ TypeMismatch "procedure" nonProc
 
