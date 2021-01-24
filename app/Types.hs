@@ -55,7 +55,7 @@ data LispVal = LispSymbol String
              | LispDottedList [LispVal] LispVal
              | LispPrimitiveProc ([LispVal] -> LispValOrError)
              | LispProc { procParams    :: [String]
-                        , procVarParams :: Maybe String
+                        , procVarParam  :: Maybe String
                         , procBody      :: [LispVal]
                         , procClosure   :: Env
                         }
@@ -74,9 +74,9 @@ showLispVal = \case
   LispVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
   LispDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
   LispPrimitiveProc _      -> "<primative>"
-  LispProc {procParams=params, procVarParams=varParams} ->
+  LispProc {procParams=params, procVarParam=varParam} ->
     "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
-    where showVarArgs = case varParams of
+    where showVarArgs = case varParam of
             Nothing -> ""
             Just val  -> ". " ++ val
 
