@@ -3,108 +3,87 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module Eval where
-import Control.Monad.Except (ExceptT, MonadIO(liftIO),  throwError )
-import Types (LispValOrError,  LispVal (..), LispError (..), Env )
-import Data.IORef (writeIORef, readIORef, newIORef)
-import Data.Maybe (isNothing)
 
--- IO LispVal with LispError exceptions
-type IOLispValOrError = ExceptT LispError IO LispVal
-type IONilOrError = ExceptT LispError IO ()
+import Data.Maybe (isNothing)
+import Control.Monad.Except (throwError, liftIO)
+
+import Types
+  ( LispValOrError
+  , IOLispValOrError
+  , LispVal (..)
+  , LispError (..)
+  , Env
+  )
+import Env
+  ( extendFrom
+  , getVar
+  , defineVar
+  , setVar
+  )
+
 
 liftThrows :: LispValOrError -> IOLispValOrError
 liftThrows = \case
   Left err -> throwError err
   Right val -> return val
 
-getVar :: Env -> String -> IOLispValOrError
-getVar envRef varName = do
-  envMap <- liftIO $ readIORef envRef
-  case lookup varName envMap of
-    Nothing -> throwError $ UnboundVar varName
-    Just varRef -> liftIO $ readIORef varRef
-
-
-setVar :: Env -> String -> LispVal -> IONilOrError
-setVar envRef varName val = do
-  envMap <- liftIO $ readIORef envRef
-  case lookup varName envMap of
-    Nothing -> throwError $ UnboundVar varName
-    Just varRef -> liftIO $ writeIORef varRef val
-
-
-defineVar :: Env -> String -> LispVal -> IO ()
-defineVar envRef varName val = do
-  envMap <- readIORef envRef
-  case lookup varName envMap of
-    Nothing -> do
-      varRef <- newIORef val
-      liftIO $ writeIORef envRef ((varName, varRef):envMap)
-    Just varRef -> writeIORef varRef val
-
-
--- TODO: move this somewhere that makes more sense
-extendFrom :: Env -> [(String, LispVal)] -> IO Env
-extendFrom baseEnvRef bindings = do
-  baseEnvMap <- readIORef baseEnvRef
-  envRef <- newIORef baseEnvMap
-  mapM_ (uncurry $ defineVar envRef) bindings
-  return envRef
-
-
 
 evalQuasiquoted :: Env -> LispVal -> IOLispValOrError
-evalQuasiquoted env (LispList list') =
-  let unquote val = LispList [LispSymbol "unquote", val]
-      quasiquote val = LispList [LispSymbol "quasiquote", val]
+evalQuasiquoted env (LispList list') = let
+  unquote val = LispList [LispSymbol "unquote", val]
+  quasiquote val = LispList [LispSymbol "quasiquote", val]
 
-      iter
-        :: Integer    -- quasiquote level
-        -> [LispVal]  -- accumulator
-        -> [LispVal]  -- remaining
-        -> IOLispValOrError
-      iter _ acc [] = return $ LispList $ reverse acc
+  iter
+    :: Integer    -- quasiquote level
+    -> [LispVal]  -- accumulator
+    -> [LispVal]  -- remaining
+    -> IOLispValOrError
 
-      iter qqDepth _ [LispSymbol "unquote", val] =
-        if qqDepth == 1
-        then eval env val
-        else case val of
-          LispList list -> unquote <$> iter (qqDepth - 1) [] list
-          nonList -> return $ unquote nonList
+  iter _ acc [] = return $ LispList $ reverse acc
 
-      -- TODO: unquote-splicing
+  iter qqDepth _ [LispSymbol "unquote", val] =
+    if qqDepth == 1
+    then eval env val
+    else case val of
+      LispList list -> unquote <$> iter (qqDepth - 1) [] list
+      nonList -> return $ unquote nonList
 
-      iter qqDepth _ [LispSymbol "quasiquote", val] =
-        case val of
-          LispList list -> quasiquote <$> iter (qqDepth + 1) [] list
-          nonList -> return $ quasiquote nonList
+  -- TODO: unquote-splicing
 
-      iter qqDepth acc (LispList list:xs) = do
-        scannedList <- iter qqDepth [] list
-        iter qqDepth (scannedList:acc) xs
+  iter qqDepth _ [LispSymbol "quasiquote", val] =
+    case val of
+      LispList list -> quasiquote <$> iter (qqDepth + 1) [] list
+      nonList -> return $ quasiquote nonList
 
-      iter qqDepth acc (x:xs) = iter qqDepth (x:acc) xs
+  iter qqDepth acc (LispList list:xs) = do
+    scannedList <- iter qqDepth [] list
+    iter qqDepth (scannedList:acc) xs
+
+  iter qqDepth acc (x:xs) = iter qqDepth (x:acc) xs
 
   in iter 1 [] list'
 
 evalQuasiquoted _ val = return val
 
-data ProcSpec = ProcSpec { psEnv      :: Env
-                         , psName     :: String
-                         , psParams   :: [LispVal]
-                         , psVarParam :: Maybe LispVal
-                         , psBody     :: [LispVal]
-                         }
+
+data ProcSpec = ProcSpec
+  { psEnv      :: Env
+  , psName     :: String
+  , psParams   :: [LispVal]
+  , psVarParam :: Maybe LispVal
+  , psBody     :: [LispVal]
+  }
 
 makeProc :: ProcSpec -> LispValOrError
 makeProc ProcSpec{..} =
   do params <- mapM symbolToString psParams
      varParam <- mapM symbolToString psVarParam
-     return $ LispProc { procParams   = params
-                       , procVarParam = varParam
-                       , procBody     = psBody
-                       , procClosure  = psEnv
-                       }
+     return $ LispProc
+       { procParams   = params
+       , procVarParam = varParam
+       , procBody     = psBody
+       , procClosure  = psEnv
+       }
   where
     symbolToString :: LispVal -> Either LispError String
     symbolToString = \case
@@ -214,7 +193,6 @@ eval env (LispList (procExpr:args)) =
   do proc' <- eval env procExpr
      evaledArgs <- mapM (eval env) args
      case proc' of
-       -- TODO: factor out into `apply` primative ?
        LispPrimitiveProc primProc -> liftThrows $ primProc evaledArgs
        LispProc {..} ->
          let numParams' = length procParams
@@ -224,8 +202,8 @@ eval env (LispList (procExpr:args)) =
             then
               throwError $ NumArgs numParams args
             else
-              let remainingArgs = drop numParams' args
-                  paramsArgsMap = zip procParams args ++ case procVarParam of
+              let remainingArgs = drop numParams' evaledArgs
+                  paramsArgsMap = zip procParams evaledArgs ++ case procVarParam of
                     Just varParamName -> [(varParamName, LispList remainingArgs)]
                     Nothing           -> []
               in do
@@ -235,6 +213,4 @@ eval env (LispList (procExpr:args)) =
        nonProc           -> throwError $ TypeMismatch "procedure" nonProc
 
 
-
 eval _ form = throwError $ BadForm "Unrecognized form" form
-

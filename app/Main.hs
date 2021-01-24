@@ -6,15 +6,14 @@ import System.IO (hFlush, stdout)
 import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr, parseExprs)
-import Eval (eval, extendFrom)
+import Eval (eval)
+import Env (primitiveEnv)
 import Types
   ( Env
-  , nullEnv
   , LispVal
   , LispValOrError
   , LispError (ParseError)
   )
-import Primitives (primitives)
 
 readExpr :: String -> String -> LispValOrError
 readExpr streamName input =
@@ -34,9 +33,6 @@ loop_
   -> (a -> m ())  -- action
   -> m ()
 loop_ getNext action = getNext >>= action >> loop_ getNext action
-
-primitiveEnv :: IO Env
-primitiveEnv = nullEnv >>= flip extendFrom primitives
 
 runRepl :: IO ()
 runRepl = do

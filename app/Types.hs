@@ -4,13 +4,15 @@ module Types
   , LispVal (..)
   , LispError (..)
   , LispValOrError
+  , IOLispValOrError
+  , IONilOrError
   , Env
-  , nullEnv
   ) where
 
 import Data.IORef
 import qualified Data.Array as A
 import Text.Parsec ( ParseError )
+import Control.Monad.Except (ExceptT)
 
 
 unwordsList :: [LispVal] -> String
@@ -103,9 +105,9 @@ showLispError = \case
   Default msg                  -> "Error: " ++ msg
 
 
-type LispValOrError = Either LispError LispVal
 
 type Env = IORef [(String, IORef LispVal)]
 
-nullEnv :: IO Env
-nullEnv = newIORef []
+type LispValOrError = Either LispError LispVal
+type IOLispValOrError = ExceptT LispError IO LispVal
+type IONilOrError = ExceptT LispError IO ()

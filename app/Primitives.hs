@@ -1,5 +1,5 @@
-{-# LANGUAGE LambdaCase #-}
 module Primitives ( primitives ) where
+
 import Control.Monad.Except ( throwError )
 
 import Types
