@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 module Eval where
 import Control.Monad.Except (ExceptT, MonadIO(liftIO),  throwError )
 import Types (LispValOrError,  LispVal (..), LispError (..), Env )
@@ -110,6 +112,34 @@ makeProc ProcSpec{..} =
       _ -> throwError $ BadForm "Invalid procedure definition"
                                 (LispList (LispSymbol psName : psParams))
 
+pattern Lambda :: [LispVal] -> [LispVal] -> LispVal
+pattern Lambda params body <-
+  LispList ( LispSymbol "lambda"
+           : LispList params
+           : body
+           )
+
+pattern VariadicLambda :: [LispVal] -> LispVal -> [LispVal] -> LispVal
+pattern VariadicLambda params varParam body <-
+  LispList ( LispSymbol "lambda"
+           : LispDottedList params varParam
+           : body
+           )
+
+pattern ProcDef :: String -> [LispVal] -> [LispVal] -> LispVal
+pattern ProcDef name params body <-
+  LispList ( LispSymbol "define"
+           : LispList (LispSymbol name : params)
+           : body
+           )
+
+pattern VariadicProcDef :: String -> [LispVal] -> LispVal -> [LispVal] -> LispVal
+pattern VariadicProcDef name params varParam body <-
+  LispList ( LispSymbol "define"
+           : LispDottedList (LispSymbol name : params) varParam
+           : body
+           )
+
 eval :: Env -> LispVal -> IOLispValOrError
 eval _   val@(LispDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
 eval _   val@(LispVector _)       = throwError $ BadForm "Can't eval vector" val
@@ -124,7 +154,7 @@ eval env (LispSymbol varName)     = getVar env varName
 eval _   (LispList [LispSymbol "quote", val])      = return val
 eval env (LispList [LispSymbol "quasiquote", val]) = evalQuasiquoted env val
 
-eval env (LispList (LispSymbol "lambda" : LispList params : body)) =
+eval env (Lambda params body) =
   liftThrows $ makeProc ProcSpec
     { psEnv      = env
     , psName     = "<lambda>"
@@ -133,7 +163,7 @@ eval env (LispList (LispSymbol "lambda" : LispList params : body)) =
     , psBody     = body
     }
 
-eval env (LispList (LispSymbol "lambda" : LispDottedList params varParam : body)) =
+eval env (VariadicLambda params varParam body) =
   liftThrows $ makeProc ProcSpec
     { psEnv      = env
     , psName     = "<lambda>"
@@ -157,7 +187,7 @@ eval env (LispList [LispSymbol "define", LispSymbol varName, form]) =
      liftIO $ defineVar env varName val
      return $ LispList []
 
-eval env (LispList (LispSymbol "define" : LispList (LispSymbol name : params) : body)) =
+eval env (ProcDef name params body) =
   do proc' <- liftThrows $ makeProc ProcSpec
        { psEnv      = env
        , psName     = name
@@ -168,14 +198,12 @@ eval env (LispList (LispSymbol "define" : LispList (LispSymbol name : params) : 
      liftIO $ defineVar env name proc'
      return $ LispList []
 
-eval env (LispList ( LispSymbol "define"
-                   : LispDottedList (LispSymbol name : params) varParams
-                   : body)) =
+eval env (VariadicProcDef name params varParam body) =
   do proc' <- liftThrows $ makeProc ProcSpec
        { psEnv      = env
        , psName     = name
        , psParams   = params
-       , psVarParam = Just varParams
+       , psVarParam = Just varParam
        , psBody     = body
        }
      liftIO $ defineVar env name proc'
