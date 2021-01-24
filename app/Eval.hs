@@ -91,33 +91,41 @@ makeProc ProcSpec{..} =
       _ -> throwError $ BadForm "Invalid procedure definition"
                                 (SList (SSymbol psName : psParams))
 
+apply :: SchemeVal -> [SchemeVal] -> IOSchemeValOrError
+apply (SPrimativeProc proc'') args = liftThrows $ proc'' args
+apply SProc {..} args = let
+  numParams' = length procParams
+  numParams  = toInteger numParams'
+  numArgs    = toInteger $ length args
+  in if (numParams > numArgs) || (numParams < numArgs && isNothing procVarParam)
+     then throwError $ NumArgs numParams args
+     else let
+       remainingArgs = drop numParams' args
+       paramsArgsMap = zip procParams args ++ case procVarParam of
+         Just varParamName -> [(varParamName, SList remainingArgs)]
+         Nothing           -> []
+     in do
+       procEnv <- liftIO $ extendFrom procClosure paramsArgsMap
+       last $ map (eval procEnv) procBody
+apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
+
+
 pattern Lambda :: [SchemeVal] -> [SchemeVal] -> SchemeVal
-pattern Lambda params body <-
-  SList ( SSymbol "lambda"
-           : SList params
-           : body
-           )
+pattern Lambda params body <- SList
+  (SSymbol "lambda" : SList params : body)
 
 pattern VariadicLambda :: [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
 pattern VariadicLambda params varParam body <-
-  SList ( SSymbol "lambda"
-           : SDottedList params varParam
-           : body
-           )
+  SList (SSymbol "lambda" : SDottedList params varParam : body)
 
 pattern ProcDef :: String -> [SchemeVal] -> [SchemeVal] -> SchemeVal
-pattern ProcDef name params body <-
-  SList ( SSymbol "define"
-           : SList (SSymbol name : params)
-           : body
-           )
+pattern ProcDef name params body <- SList
+  (SSymbol "define" : SList (SSymbol name : params) : body)
 
 pattern VariadicProcDef :: String -> [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
-pattern VariadicProcDef name params varParam body <-
-  SList ( SSymbol "define"
-           : SDottedList (SSymbol name : params) varParam
-           : body
-           )
+pattern VariadicProcDef name params varParam body <- SList
+  (SSymbol "define" : SDottedList (SSymbol name : params) varParam : body)
+
 
 eval :: Env -> SchemeVal -> IOSchemeValOrError
 eval _   val@(SDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
@@ -188,29 +196,9 @@ eval env (VariadicProcDef name params varParam body) =
      liftIO $ defineVar env name proc'
      return $ SList []
 
-
 eval env (SList (procExpr:args)) =
   do proc' <- eval env procExpr
      evaledArgs <- mapM (eval env) args
-     case proc' of
-       SPrimativeProc primProc -> liftThrows $ primProc evaledArgs
-       SProc {..} ->
-         let numParams' = length procParams
-             numParams  = toInteger numParams'
-             numArgs    = toInteger $ length args
-         in if (numParams > numArgs) || (numParams < numArgs && isNothing procVarParam)
-            then
-              throwError $ NumArgs numParams args
-            else
-              let remainingArgs = drop numParams' evaledArgs
-                  paramsArgsMap = zip procParams evaledArgs ++ case procVarParam of
-                    Just varParamName -> [(varParamName, SList remainingArgs)]
-                    Nothing           -> []
-              in do
-                procEnv <- liftIO $ extendFrom procClosure paramsArgsMap
-                last $ map (eval procEnv) procBody
-
-       nonProc           -> throwError $ TypeMismatch "procedure" nonProc
-
+     apply proc' evaledArgs
 
 eval _ form = throwError $ BadForm "Unrecognized form" form
