@@ -10,18 +10,18 @@ import Eval (eval)
 import Env (primitiveEnv)
 import Types
   ( Env
-  , LispVal
-  , LispValOrError
-  , LispError (ParseError)
+  , SchemeVal
+  , SchemeValOrError
+  , SchemeError (ParseError)
   )
 
-readExpr :: String -> String -> LispValOrError
+readExpr :: String -> String -> SchemeValOrError
 readExpr streamName input =
   case P.parse parseExpr streamName input of
     Left err -> throwError $ ParseError err
     Right value -> return value
 
-readExprs :: String -> String -> Either LispError [LispVal]
+readExprs :: String -> String -> Either SchemeError [SchemeVal]
 readExprs streamName input =
   case P.parse parseExprs streamName input of
     Left err -> throwError $ ParseError err
@@ -39,13 +39,13 @@ runRepl = do
   env <- primitiveEnv
   loop_ readFromPrompt (evalAndPrint env)
   where
-    readFromPrompt :: IO LispValOrError
+    readFromPrompt :: IO SchemeValOrError
     readFromPrompt = putStr ">>> "
                   >> hFlush stdout
                   >> getLine
                  >>= return . readExpr "REPL"
 
-    evalAndPrint :: Env -> LispValOrError -> IO ()
+    evalAndPrint :: Env -> SchemeValOrError -> IO ()
     evalAndPrint env expr = case expr of
       Left err -> print err
       Right valid ->
@@ -62,7 +62,7 @@ evalFile filename = do
     Left err -> print err
     Right exprs -> mapM_ (evalAndPrint env) exprs
   where
-    evalAndPrint :: Env -> LispVal -> IO ()
+    evalAndPrint :: Env -> SchemeVal -> IO ()
     evalAndPrint env expr =
       runExceptT (eval env expr) >>= \case
         Left err' -> print err'

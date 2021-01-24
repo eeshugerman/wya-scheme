@@ -1,10 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 module Types
-  ( LispNumber (..)
-  , LispVal (..)
-  , LispError (..)
-  , LispValOrError
-  , IOLispValOrError
+  ( SchemeNumber (..)
+  , SchemeVal (..)
+  , SchemeError (..)
+  , SchemeValOrError
+  , IOSchemeValOrError
   , IONilOrError
   , Env
   ) where
@@ -15,86 +15,85 @@ import Text.Parsec ( ParseError )
 import Control.Monad.Except (ExceptT)
 
 
-unwordsList :: [LispVal] -> String
-unwordsList = unwords . map showLispVal
+unwordsList :: [SchemeVal] -> String
+unwordsList = unwords . map showSchemeVal
 
-data LispNumber = LispComplex LispNumber LispNumber  -- TODO: use Data.Complex.Complex
-                | LispReal Float
-                | LispRational Integer Integer  -- TODO: use Data.Ratio.Rational
-                | LispInteger Integer
-                deriving Eq
+data SchemeNumber = SComplex SchemeNumber SchemeNumber  -- TODO: use Data.Complex.Complex
+                  | SReal Float
+                  | SRational Integer Integer  -- TODO: use Data.Ratio.Rational
+                  | SInteger Integer
+                  deriving Eq
 
-instance Show LispNumber where show = showLispNumber
+instance Show SchemeNumber where show = showSchemeNumber
 
-showLispNumber :: LispNumber -> String
-showLispNumber = \case
-  LispInteger val          -> show val
-  LispRational numer denom -> show numer ++ "/" ++ show denom
-  LispReal val             -> show val
-  LispComplex real imag    -> showComplex real imag
+showSchemeNumber :: SchemeNumber -> String
+showSchemeNumber = \case
+  SInteger val          -> show val
+  SRational numer denom -> show numer ++ "/" ++ show denom
+  SReal val             -> show val
+  SComplex real imag    -> showComplex real imag
   where
-    showComplex :: LispNumber -> LispNumber -> String
+    showComplex :: SchemeNumber -> SchemeNumber -> String
     showComplex real imag = show real ++ showWithSign imag ++ "i"
 
-    showWithSign :: LispNumber -> String
+    showWithSign :: SchemeNumber -> String
     showWithSign = \case
-      LispInteger val            -> maybePlusStr val ++ show val
-      LispReal val               -> maybePlusStr val ++ show val
-      val@(LispRational numer _) -> maybePlusStr numer ++ showLispNumber val
-      LispComplex _ _            -> error "internal error: `imag` is a complex number. "
-                                       ++ "this expression should not have parsed."
+      SInteger val            -> maybePlusStr val ++ show val
+      SReal val               -> maybePlusStr val ++ show val
+      val@(SRational numer _) -> maybePlusStr numer ++ showSchemeNumber val
+      SComplex _ _            -> error "internal error: `imag` is a complex number. "
+                                    ++ "this expression should not have parsed."
 
     maybePlusStr :: (Num a, Ord a) => a -> String
     maybePlusStr val = if val > 0 then "+" else ""
 
-data LispVal = LispSymbol String
-             | LispBool Bool
-             | LispCharacter Char
-             | LispString String
-             | LispNumber LispNumber
-             | LispList [LispVal]
-             | LispVector (A.Array Int LispVal)
-             | LispDottedList [LispVal] LispVal
-             | LispPrimitiveProc ([LispVal] -> LispValOrError)
-             | LispProc { procParams    :: [String]
-                        , procVarParam  :: Maybe String
-                        , procBody      :: [LispVal]
-                        , procClosure   :: Env
-                        }
+data SchemeVal = SSymbol String
+               | SBool Bool
+               | SChar Char
+               | SString String
+               | SNumber SchemeNumber
+               | SList [SchemeVal]
+               | SVector (A.Array Int SchemeVal)
+               | SDottedList [SchemeVal] SchemeVal
+               | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
+               | SProc { procParams    :: [String]
+                       , procVarParam  :: Maybe String
+                       , procBody      :: [SchemeVal]
+                       , procClosure   :: Env
+                       }
 
-instance Show LispVal where show = showLispVal
+instance Show SchemeVal where show = showSchemeVal
 
-showLispVal :: LispVal -> String
-showLispVal = \case
-  LispSymbol val           -> val
-  LispBool True            -> "#t"
-  LispBool False           -> "#f"
-  LispCharacter val        -> "#\\" ++ [val] -- TODO: named chars
-  LispString val           -> "\"" ++ val ++ "\""
-  LispNumber val           -> show val
-  LispList val             -> "(" ++ unwordsList val ++ ")"
-  LispVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
-  LispDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
-  LispPrimitiveProc _      -> "<primative>"
-  LispProc {procParams=params, procVarParam=varParam} ->
+showSchemeVal :: SchemeVal -> String
+showSchemeVal = \case
+  SSymbol val           -> val
+  SBool True            -> "#t"
+  SBool False           -> "#f"
+  SChar val             -> "#\\" ++ [val] -- TODO: named chars
+  SString val           -> "\"" ++ val ++ "\""
+  SNumber val           -> show val
+  SList val             -> "(" ++ unwordsList val ++ ")"
+  SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
+  SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
+  SPrimativeProc _      -> "<primative>"
+  SProc {procParams=params, procVarParam=varParam} ->
     "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
-    where showVarArgs = case varParam of
-            Nothing -> ""
-            Just val  -> ". " ++ val
+    where
+      showVarArgs = case varParam of
+        Nothing -> ""
+        Just val  -> ". " ++ val
 
+data SchemeError = NumArgs Integer [SchemeVal]
+                 | TypeMismatch String SchemeVal
+                 | ParseError ParseError
+                 | BadForm String SchemeVal
+                 | UnboundVar String
+                 | Default String
 
+instance Show SchemeError where show = showSchemeError
 
-data LispError = NumArgs Integer [LispVal]
-               | TypeMismatch String LispVal
-               | ParseError ParseError
-               | BadForm String LispVal
-               | UnboundVar String
-               | Default String
-
-instance Show LispError where show = showLispError
-
-showLispError :: LispError -> String
-showLispError = \case
+showSchemeError :: SchemeError -> String
+showSchemeError = \case
   UnboundVar varname           -> "Unbound variable: " ++ varname
   BadForm msg form             -> msg ++ ": " ++ show form
   NumArgs expected found       -> "Expected " ++ show expected
@@ -106,8 +105,8 @@ showLispError = \case
 
 
 
-type Env = IORef [(String, IORef LispVal)]
+type Env = IORef [(String, IORef SchemeVal)]
 
-type LispValOrError = Either LispError LispVal
-type IOLispValOrError = ExceptT LispError IO LispVal
-type IONilOrError = ExceptT LispError IO ()
+type SchemeValOrError = Either SchemeError SchemeVal
+type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
+type IONilOrError = ExceptT SchemeError IO ()

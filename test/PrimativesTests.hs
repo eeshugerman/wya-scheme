@@ -7,7 +7,7 @@ import Types
 import qualified Primitives as Prim
 
 testFactory
-  :: [(String, [LispVal], LispVal)]    -- procName, args, expected
+  :: [(String, [SchemeVal], SchemeVal)]    -- procName, args, expected
   -> Test
 testFactory casePairs = TestList
   [ case lookup procName Prim.primitives of
@@ -19,9 +19,9 @@ testFactory casePairs = TestList
   | (procName, args, expected) <- casePairs ]
 
 -- shorthand
-lOne = LispNumber $ LispInteger 1
-lTwo = LispNumber $ LispInteger 2
-lThree = LispNumber $ LispInteger 3
+lOne = SNumber $ SInteger 1
+lTwo = SNumber $ SInteger 2
+lThree = SNumber $ SInteger 3
 
 
 numericFoldableOpTests = testFactory
@@ -29,16 +29,16 @@ numericFoldableOpTests = testFactory
   , ("+", [lOne, lOne, lOne], lThree)
 
   , ( "/"
-    , [ lOne , LispNumber $ LispComplex (LispInteger 1) (LispRational 3 4)]
-    , LispNumber $ LispComplex (LispReal 0.64) (LispReal (-0.48))
+    , [ lOne , SNumber $ SComplex (SInteger 1) (SRational 3 4)]
+    , SNumber $ SComplex (SReal 0.64) (SReal (-0.48))
     )
   ]
 
 listOpsTests = testFactory
-  [ ("car",  [LispList [lOne, lTwo]],  lOne)
-  , ("cdr",  [LispList [lOne, lTwo]],  LispList [lTwo])
-  , ("cons", [lOne, lTwo],                     LispDottedList [lOne] lTwo)
-  , ("cons", [lOne, LispList [lTwo]],  LispList [lOne, lTwo])
+  [ ("car",  [SList [lOne, lTwo]],  lOne)
+  , ("cdr",  [SList [lOne, lTwo]],  SList [lTwo])
+  , ("cons", [lOne, lTwo],                     SDottedList [lOne] lTwo)
+  , ("cons", [lOne, SList [lTwo]],  SList [lOne, lTwo])
   ]
 
 tests = TestLabel "PRIMATIVE" $ TestList

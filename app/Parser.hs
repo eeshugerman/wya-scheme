@@ -8,19 +8,19 @@ import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  ( LispNumber(..)
-  , LispVal(..)
+  ( SchemeNumber(..)
+  , SchemeVal(..)
   )
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
--- TODO: use `LispError`, not `error`
+-- TODO: use `SchemeError`, not `error`
 
 data Sign = Plus | Minus
 data Radix = Binary | Octal | Decimal | Hex
 
 -- based on https://www.scheme.com/tspl4/grammar.html#Symbols
-parseSymbol :: P.Parser LispVal
-parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
+parseSymbol :: P.Parser SchemeVal
+parseSymbol = SSymbol <$> (peculiarSymbol <|> regularSymbol)
   where
     peculiarSymbol :: P.Parser String
     peculiarSymbol = P.string "+" <|> P.string "-" <|> P.try (P.string "...")
@@ -38,12 +38,12 @@ parseSymbol = LispSymbol <$> (peculiarSymbol <|> regularSymbol)
         subsequent = initial <|> P.digit <|> P.oneOf "+-.@"
 
 
-parseBool :: P.Parser LispVal
-parseBool = LispBool <$>
+parseBool :: P.Parser SchemeVal
+parseBool = SBool <$>
   P.try (P.char '#' >> ((P.char 't' >> return True) <|>
                         (P.char 'f' >> return False)))
 
-parseCharacter :: P.Parser LispVal
+parseCharacter :: P.Parser SchemeVal
 parseCharacter = let
   prefix = P.try $ P.string "#\\"
   namedChar name val =  P.try $ P.string name >> return val
@@ -51,15 +51,15 @@ parseCharacter = let
           <|> namedChar "newline" '\n'
           <|> namedChar "tab"     '\t'
           <|> P.anyChar
-  in LispCharacter <$> (prefix >> charName)
+  in SChar <$> (prefix >> charName)
 
 
-parseString :: P.Parser LispVal
+parseString :: P.Parser SchemeVal
 parseString = do
   P.char '"'
   x <- P.many (P.try escapeChar <|> P.noneOf "\"")
   P.char '"'
-  return $ LispString x
+  return $ SString x
   where
     escapeChar :: P.Parser Char
     escapeChar = do
@@ -86,12 +86,12 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
-parseInteger :: P.Parser LispNumber
+parseInteger :: P.Parser SchemeNumber
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
   digits <- P.many1 $ allowedDigits radix
-  return . LispInteger . applySign sign $ readInt radix digits
+  return . SInteger . applySign sign $ readInt radix digits
   where
     readInt :: Radix -> String -> Integer
     readInt = \case
@@ -125,17 +125,17 @@ parseInteger = P.try $ do
       Hex ->     P.oneOf "0123456789abcdefABCDEF"
 
 
-parseRational :: P.Parser LispNumber
+parseRational :: P.Parser SchemeNumber
 parseRational = P.try $ do
   sign <- parseSign
   numerator <- P.many1 P.digit
   P.char '/'
   denominator <- P.many1 P.digit
-  return $ LispRational (applySign sign $ read numerator) (read denominator)
+  return $ SRational (applySign sign $ read numerator) (read denominator)
 
 
 -- TODO: #e / #i
-parseReal :: P.Parser LispNumber
+parseReal :: P.Parser SchemeNumber
 parseReal = P.try $ do
   sign <- parseSign
   whole <- P.many P.digit
@@ -145,76 +145,76 @@ parseReal = P.try $ do
     then P.pzero   -- do a fail
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
-         in return $ LispReal $ applySign sign mag
+         in return $ SReal $ applySign sign mag
 
 
-parseComplex :: P.Parser LispNumber
+parseComplex :: P.Parser SchemeNumber
 parseComplex = P.try $ do
   real <- P.try parseReal <|> P.try parseRational <|> parseInteger
   imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
   P.char 'i'
-  return $ LispComplex real imag
+  return $ SComplex real imag
 
-parseNumber :: P.Parser LispVal
+parseNumber :: P.Parser SchemeVal
 parseNumber = fmap
-  LispNumber
+  SNumber
   (parseReal <|> parseRational <|> parseComplex <|> parseInteger)
 
-parseLispVals :: P.Parser [LispVal]
+parseSchemeVals :: P.Parser [SchemeVal]
 -- endBy is like sepBy except if there's seperator at the end it will be consumed
-parseLispVals = parseExpr `P.endBy` P.spaces
+parseSchemeVals = parseExpr `P.endBy` P.spaces
 
-parseMaybeDottedListEnd :: P.Parser (Maybe LispVal)
+parseMaybeDottedListEnd :: P.Parser (Maybe SchemeVal)
 parseMaybeDottedListEnd =
   P.optionMaybe (P.char '.' >> P.skipMany1 P.space >> parseExpr)
 
 
 
-parseListOrDottedList :: P.Parser LispVal
+parseListOrDottedList :: P.Parser SchemeVal
 parseListOrDottedList = do
   P.char '('
-  beginning <- parseLispVals
+  beginning <- parseSchemeVals
   maybeEnd <- parseMaybeDottedListEnd
   P.char ')'
   return $ case maybeEnd of
-    Nothing -> LispList beginning
+    Nothing -> SList beginning
     Just end -> simplifyDottedList beginning end
   where
-    simplifyDottedList :: [LispVal] -> LispVal -> LispVal
+    simplifyDottedList :: [SchemeVal] -> SchemeVal -> SchemeVal
     simplifyDottedList a b = case b of
-      LispList b'           -> LispList $ a ++ b'
-      LispDottedList ba bb  -> simplifyDottedList (a ++ ba) bb
-      _                     -> LispDottedList a b
+      SList b'           -> SList $ a ++ b'
+      SDottedList ba bb  -> simplifyDottedList (a ++ ba) bb
+      _                     -> SDottedList a b
 
-parseQuoted :: P.Parser LispVal
+parseQuoted :: P.Parser SchemeVal
 parseQuoted = do
   expr <- P.char '\'' >> parseExpr
-  return $ LispList [LispSymbol "quote", expr]
+  return $ SList [SSymbol "quote", expr]
 
-parseUnquoted :: P.Parser LispVal
+parseUnquoted :: P.Parser SchemeVal
 parseUnquoted = do
   expr <- P.char ',' >> parseExpr
-  return $ LispList [LispSymbol "unquote", expr]
+  return $ SList [SSymbol "unquote", expr]
 
-parseUnquotedSplicing :: P.Parser LispVal
+parseUnquotedSplicing :: P.Parser SchemeVal
 parseUnquotedSplicing = do
   expr <- P.try $ P.string ",@" >> parseExpr
-  return $ LispList [LispSymbol "unquote-splicing", expr]
+  return $ SList [SSymbol "unquote-splicing", expr]
 
-parseQuasiquoted :: P.Parser LispVal
+parseQuasiquoted :: P.Parser SchemeVal
 parseQuasiquoted = do
   expr <- P.char '`' >> parseExpr
-  return $ LispList [LispSymbol "quasiquote", expr]
+  return $ SList [SSymbol "quasiquote", expr]
 
-parseVector :: P.Parser LispVal
+parseVector :: P.Parser SchemeVal
 parseVector = do
   P.string "#("
-  elems <- parseLispVals
+  elems <- parseSchemeVals
   P.char ')'
-  return $ LispVector $ listArray (0, length elems - 1) elems
+  return $ SVector $ listArray (0, length elems - 1) elems
 
 
-parseExpr :: P.Parser LispVal
+parseExpr :: P.Parser SchemeVal
 parseExpr = parseCharacter
         <|> parseBool
         <|> parseNumber
@@ -227,5 +227,5 @@ parseExpr = parseCharacter
         <|> parseQuasiquoted
         <|> parseListOrDottedList
 
-parseExprs :: P.Parser [LispVal]
+parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces

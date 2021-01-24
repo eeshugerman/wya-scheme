@@ -12,11 +12,11 @@ import Primitives (primitives)
 import Control.Monad.Except (throwError, liftIO)
 
 import Types
-  ( LispError(..)
+  ( SchemeError(..)
   , IONilOrError
-  , IOLispValOrError
+  , IOSchemeValOrError
   , Env
-  , LispVal
+  , SchemeVal
   )
 
 nullEnv :: IO Env
@@ -25,24 +25,21 @@ nullEnv = newIORef []
 primitiveEnv :: IO Env
 primitiveEnv = nullEnv >>= flip extendFrom primitives
 
-
-getVar :: Env -> String -> IOLispValOrError
+getVar :: Env -> String -> IOSchemeValOrError
 getVar envRef varName = do
   envMap <- liftIO $ readIORef envRef
   case lookup varName envMap of
     Nothing -> throwError $ UnboundVar varName
     Just varRef -> liftIO $ readIORef varRef
 
-
-setVar :: Env -> String -> LispVal -> IONilOrError
+setVar :: Env -> String -> SchemeVal -> IONilOrError
 setVar envRef varName val = do
   envMap <- liftIO $ readIORef envRef
   case lookup varName envMap of
     Nothing -> throwError $ UnboundVar varName
     Just varRef -> liftIO $ writeIORef varRef val
 
-
-defineVar :: Env -> String -> LispVal -> IO ()
+defineVar :: Env -> String -> SchemeVal -> IO ()
 defineVar envRef varName val = do
   envMap <- readIORef envRef
   case lookup varName envMap of
@@ -51,11 +48,9 @@ defineVar envRef varName val = do
       liftIO $ writeIORef envRef ((varName, varRef):envMap)
     Just varRef -> writeIORef varRef val
 
-
-extendFrom :: Env -> [(String, LispVal)] -> IO Env
+extendFrom :: Env -> [(String, SchemeVal)] -> IO Env
 extendFrom baseEnvRef bindings = do
   baseEnvMap <- readIORef baseEnvRef
   envRef <- newIORef baseEnvMap
   mapM_ (uncurry $ defineVar envRef) bindings
   return envRef
-

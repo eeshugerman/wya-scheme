@@ -6,74 +6,74 @@ import Eval
 import Types
 import qualified Primitives as Prim
 
-unpackVal :: LispValOrError -> LispVal
+unpackVal :: SchemeValOrError -> SchemeVal
 unpackVal (Left err) = error $ "unexpected error: " ++ show err
 unpackVal (Right val) = val
 
-testFactory :: (Eq a, Show a) => (LispValOrError -> a) -> [(LispVal, a)] -> Test
+testFactory :: (Eq a, Show a) => (SchemeValOrError -> a) -> [(SchemeVal, a)] -> Test
 testFactory unpacker casePairs = TestList $
   [ TestCase $ assertEqual "" expected (unpacker $ eval input)
   | (input, expected) <- casePairs]
 
 -- TODO: maybe just parse scheme for these
 -- shorthand
-quote val = LispList [LispSymbol "quote", val]
-qquote val = LispList [LispSymbol "quasiquote", val]
-unquote val = LispList [LispSymbol "unquote", val]
-unquoteSplicing val = LispList [LispSymbol "unquote-splicing", val]
-lTrue = LispBool True
-lFalse = LispBool False
-lOne = LispNumber $ LispInteger 1
-lTwo = LispNumber $ LispInteger 2
-lThree = LispNumber $ LispInteger 3
+quote val = SList [SSymbol "quote", val]
+qquote val = SList [SSymbol "quasiquote", val]
+unquote val = SList [SSymbol "unquote", val]
+unquoteSplicing val = SList [SSymbol "unquote-splicing", val]
+lTrue = SBool True
+lFalse = SBool False
+lOne = SNumber $ SInteger 1
+lTwo = SNumber $ SInteger 2
+lThree = SNumber $ SInteger 3
 
 atomicTests = testFactory unpackVal
   [ (lTrue,                                 lTrue)
-  , (LispCharacter 'a',                     LispCharacter 'a')
-  , (LispString "foo",                      LispString "foo")
-  , (LispNumber $ LispInteger 1,            LispNumber $ LispInteger 1)
-  , (LispNumber $ LispRational 3 4,         LispNumber $ LispRational 3 4)
-  , (LispNumber $ LispRational 6 8,         LispNumber $ LispRational 6 8)
+  , (SChar 'a',                     SChar 'a')
+  , (SString "foo",                      SString "foo")
+  , (SNumber $ SInteger 1,            SNumber $ SInteger 1)
+  , (SNumber $ SRational 3 4,         SNumber $ SRational 3 4)
+  , (SNumber $ SRational 6 8,         SNumber $ SRational 6 8)
   ]
 
 quoteTests = testFactory unpackVal
   [ (quote lTrue,                           lTrue)
   , (quote $ quote lTrue,                   quote lTrue)
-  , (quote $ LispList [LispSymbol "foo"],   LispList [LispSymbol "foo"])
+  , (quote $ SList [SSymbol "foo"],   SList [SSymbol "foo"])
 
   , (qquote lTrue,                          lTrue)
   , (qquote $ qquote lTrue,                 qquote lTrue)
-  , (qquote $ LispList [LispSymbol "foo"],  LispList [LispSymbol "foo"])
+  , (qquote $ SList [SSymbol "foo"],  SList [SSymbol "foo"])
   ]
 
 qquoteTests = testFactory unpackVal
   [
-    ( qquote $ unquote $ LispList [LispSymbol "+", lOne, lOne]
-    , LispNumber $ LispInteger 2
+    ( qquote $ unquote $ SList [SSymbol "+", lOne, lOne]
+    , SNumber $ SInteger 2
     )
 
-  , ( qquote $ LispList [ LispSymbol "foo"
-                        , unquote $ LispList [LispSymbol "+" , lOne, lOne]
+  , ( qquote $ SList [ SSymbol "foo"
+                        , unquote $ SList [SSymbol "+" , lOne, lOne]
                         ]
-    , LispList [LispSymbol "foo", lTwo]
+    , SList [SSymbol "foo", lTwo]
     )
 
-  , ( qquote $ qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
-    , qquote $ unquote $ LispList [LispSymbol "+" , lOne, lOne]
+  , ( qquote $ qquote $ unquote $ SList [SSymbol "+" , lOne, lOne]
+    , qquote $ unquote $ SList [SSymbol "+" , lOne, lOne]
     )
   ]
 
 ifTests = testFactory unpackVal
-  [ (LispList [LispSymbol "if", lTrue, lOne, lTwo],  lOne)
-  , (LispList [LispSymbol "if", lFalse, lOne, lTwo], lTwo)
+  [ (SList [SSymbol "if", lTrue, lOne, lTwo],  lOne)
+  , (SList [SSymbol "if", lFalse, lOne, lTwo], lTwo)
 
-  , ( LispList [ LispSymbol "if"
-              , LispList [LispSymbol "=", lOne, lOne]
+  , ( SList [ SSymbol "if"
+              , SList [SSymbol "=", lOne, lOne]
               , lOne, lTwo],
       lOne
     )
-  , ( LispList [ LispSymbol "if"
-              , LispList [LispSymbol "=", lOne, lTwo]
+  , ( SList [ SSymbol "if"
+              , SList [SSymbol "=", lOne, lTwo]
               , lOne, lTwo],
       lTwo
     )
