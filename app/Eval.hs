@@ -14,12 +14,7 @@ import Types
   , SchemeError (..)
   , Env
   )
-import Env
-  ( extendFrom
-  , getVar
-  , defineVar
-  , setVar
-  )
+import Env (getVar , defineVar , setVar, extendWith)
 
 
 liftThrows :: SchemeValOrError -> IOSchemeValOrError
@@ -92,7 +87,10 @@ makeProc ProcSpec{..} =
                                 (SList (SSymbol psName : psParams))
 
 apply :: SchemeVal -> [SchemeVal] -> IOSchemeValOrError
-apply (SPrimativeProc proc'') args = liftThrows $ proc'' args
+
+apply (SPrimativeProc proc') args = liftThrows $ proc' args
+apply (SIOProc proc') args        = proc' args
+
 apply SProc {..} args = let
   numParams' = length procParams
   numParams  = toInteger numParams'
@@ -105,8 +103,9 @@ apply SProc {..} args = let
          Just varParamName -> [(varParamName, SList remainingArgs)]
          Nothing           -> []
      in do
-       procEnv <- liftIO $ extendFrom procClosure paramsArgsMap
+       procEnv <- liftIO $ extendWith paramsArgsMap procClosure 
        last $ map (eval procEnv) procBody
+
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
 

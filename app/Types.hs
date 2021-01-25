@@ -13,6 +13,7 @@ import Data.IORef
 import qualified Data.Array as A
 import Text.Parsec ( ParseError )
 import Control.Monad.Except (ExceptT)
+import GHC.IO.Handle (Handle)
 
 
 unwordsList :: [SchemeVal] -> String
@@ -55,7 +56,9 @@ data SchemeVal = SSymbol String
                | SList [SchemeVal]
                | SVector (A.Array Int SchemeVal)
                | SDottedList [SchemeVal] SchemeVal
+               | SPort Handle
                | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
+               | SIOProc ([SchemeVal] -> IOSchemeValOrError)
                | SProc { procParams    :: [String]
                        , procVarParam  :: Maybe String
                        , procBody      :: [SchemeVal]
@@ -75,13 +78,16 @@ showSchemeVal = \case
   SList val             -> "(" ++ unwordsList val ++ ")"
   SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
   SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
-  SPrimativeProc _      -> "<primative>"
+  SPort _               -> "<IO port>"
+  SPrimativeProc _      -> "<primitive>"
+  SIOProc _             -> "<IO primitive>"
   SProc {procParams=params, procVarParam=varParam} ->
     "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
     where
       showVarArgs = case varParam of
         Nothing -> ""
         Just val  -> ". " ++ val
+
 
 data SchemeError = NumArgs Integer [SchemeVal]
                  | TypeMismatch String SchemeVal

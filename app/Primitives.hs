@@ -1,16 +1,26 @@
-module Primitives ( primitives ) where
+module Primitives ( primitives ,ioPrimitives) where
 
 import Control.Monad.Except ( throwError )
 
 import Types
-  ( SchemeNumber (..)
+  ( IOSchemeValOrError
+  , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
   , SchemeValOrError
   )
+import Eval (eval, apply)
 
 import Data.Complex (Complex((:+)), realPart, imagPart)
 import Control.Monad (zipWithM)
+
+ioPrimitives :: [(String, SchemeVal)]
+ioPrimitives = [ ("apply", SIOProc wrappedApply)
+               -- , ("eval",  SIOProc $ wrap eval) -- need env type
+               ]
+  where
+    wrappedApply [proc', SList args] = apply proc' args
+    -- TODO: remaining cases
 
 primitives :: [(String, SchemeVal)]
 primitives = map (\ (name, f) -> (name, SPrimativeProc f))

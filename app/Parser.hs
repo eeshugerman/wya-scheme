@@ -216,16 +216,16 @@ parseVector = do
 
 parseExpr :: P.Parser SchemeVal
 parseExpr = parseCharacter
-        <|> parseBool
-        <|> parseNumber
-        <|> parseSymbol
-        <|> parseVector
-        <|> parseString
-        <|> parseQuoted
-        <|> parseUnquotedSplicing
-        <|> parseUnquoted
-        <|> parseQuasiquoted
-        <|> parseListOrDottedList
+         <|> parseBool
+         <|> parseNumber
+         <|> parseSymbol
+         <|> parseVector
+         <|> parseString
+         <|> parseQuoted
+         <|> parseUnquotedSplicing
+         <|> parseUnquoted
+         <|> parseQuasiquoted
+         <|> parseListOrDottedList
 
 parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces

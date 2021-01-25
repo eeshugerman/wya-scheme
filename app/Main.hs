@@ -6,8 +6,9 @@ import System.IO (hFlush, stdout)
 import Control.Monad.Except (runExceptT, throwError)
 
 import Parser (parseExpr, parseExprs)
+import Primitives (primitives, ioPrimitives)
+import Env (extendWith, nullEnv)
 import Eval (eval)
-import Env (primitiveEnv)
 import Types
   ( Env
   , SchemeVal
@@ -15,17 +16,23 @@ import Types
   , SchemeError (ParseError)
   )
 
-readExpr :: String -> String -> SchemeValOrError
-readExpr streamName input =
-  case P.parse parseExpr streamName input of
+
+primitiveEnv :: IO Env
+primitiveEnv = nullEnv
+           >>= extendWith primitives
+           >>= extendWith ioPrimitives
+
+readOrThrow :: P.Parser a -> String -> String -> Either SchemeError a
+readOrThrow parser streamName input =
+  case P.parse parser streamName input of
     Left err -> throwError $ ParseError err
-    Right value -> return value
+    Right val -> return val
+
+readExpr :: String -> String -> SchemeValOrError
+readExpr = readOrThrow parseExpr
 
 readExprs :: String -> String -> Either SchemeError [SchemeVal]
-readExprs streamName input =
-  case P.parse parseExprs streamName input of
-    Left err -> throwError $ ParseError err
-    Right exprs -> return exprs
+readExprs = readOrThrow parseExprs
 
 loop_
   :: Monad m
@@ -47,11 +54,11 @@ runRepl = do
 
     evalAndPrint :: Env -> SchemeValOrError -> IO ()
     evalAndPrint env expr = case expr of
-      Left err -> print err
+      Left parserError -> print parserError
       Right valid ->
         runExceptT (eval env valid) >>= \case
-          Left err' -> print err'
-          Right val' -> print val'
+          Left err -> print err
+          Right val -> print val
 
 
 evalFile :: FilePath -> IO ()
@@ -65,8 +72,8 @@ evalFile filename = do
     evalAndPrint :: Env -> SchemeVal -> IO ()
     evalAndPrint env expr =
       runExceptT (eval env expr) >>= \case
-        Left err' -> print err'
-        Right val' -> print val'
+        Left err -> print err
+        Right val -> print val
 
 
 main :: IO ()

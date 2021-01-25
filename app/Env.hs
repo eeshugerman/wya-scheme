@@ -1,14 +1,13 @@
 module Env
   ( nullEnv
-  , primitiveEnv
+  -- , primitiveEnv
   , getVar
   , setVar
   , defineVar
-  , extendFrom
+  , extendWith
   ) where
 
 import Data.IORef (writeIORef, readIORef, newIORef)
-import Primitives (primitives)
 import Control.Monad.Except (throwError, liftIO)
 
 import Types
@@ -21,9 +20,6 @@ import Types
 
 nullEnv :: IO Env
 nullEnv = newIORef []
-
-primitiveEnv :: IO Env
-primitiveEnv = nullEnv >>= flip extendFrom primitives
 
 getVar :: Env -> String -> IOSchemeValOrError
 getVar envRef varName = do
@@ -48,8 +44,8 @@ defineVar envRef varName val = do
       liftIO $ writeIORef envRef ((varName, varRef):envMap)
     Just varRef -> writeIORef varRef val
 
-extendFrom :: Env -> [(String, SchemeVal)] -> IO Env
-extendFrom baseEnvRef bindings = do
+extendWith :: [(String, SchemeVal)] -> Env -> IO Env
+extendWith bindings baseEnvRef = do
   baseEnvMap <- readIORef baseEnvRef
   envRef <- newIORef baseEnvMap
   mapM_ (uncurry $ defineVar envRef) bindings
