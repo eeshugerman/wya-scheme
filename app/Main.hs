@@ -1,11 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
-import qualified Text.ParserCombinators.Parsec as P
 import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
-import Control.Monad.Except (runExceptT, throwError)
+import Control.Monad.Except (runExceptT)
 
-import Parser (parseExpr, parseExprs)
+import Parser (readExpr, readExprs)
 import Primitives (primitives, ioPrimitives)
 import Env (extendWith, nullEnv)
 import Eval (eval)
@@ -22,23 +21,7 @@ primitiveEnv = nullEnv
            >>= extendWith primitives
            >>= extendWith ioPrimitives
 
-readOrThrow :: P.Parser a -> String -> String -> Either SchemeError a
-readOrThrow parser streamName input =
-  case P.parse parser streamName input of
-    Left err -> throwError $ ParseError err
-    Right val -> return val
-
-readExpr :: String -> String -> SchemeValOrError
-readExpr = readOrThrow parseExpr
-
-readExprs :: String -> String -> Either SchemeError [SchemeVal]
-readExprs = readOrThrow parseExprs
-
-loop_
-  :: Monad m
-  => m a          -- getNext
-  -> (a -> m ())  -- action
-  -> m ()
+loop_ :: Monad m => m a -> (a -> m ()) -> m ()
 loop_ getNext action = getNext >>= action >> loop_ getNext action
 
 runRepl :: IO ()
@@ -46,6 +29,7 @@ runRepl = do
   env <- primitiveEnv
   loop_ readFromPrompt (evalAndPrint env)
   where
+    {- HLint ignore "Use <&>" -}
     readFromPrompt :: IO SchemeValOrError
     readFromPrompt = putStr ">>> "
                   >> hFlush stdout

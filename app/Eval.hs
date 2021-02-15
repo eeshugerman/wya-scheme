@@ -15,6 +15,7 @@ import Types
   , Env
   )
 import Env (getVar , defineVar , setVar, extendWith)
+import Parser (readExprs)
 
 
 liftThrows :: SchemeValOrError -> IOSchemeValOrError
@@ -103,7 +104,7 @@ apply SProc {..} args = let
          Just varParamName -> [(varParamName, SList remainingArgs)]
          Nothing           -> []
      in do
-       procEnv <- liftIO $ extendWith paramsArgsMap procClosure 
+       procEnv <- liftIO $ extendWith paramsArgsMap procClosure
        last $ map (eval procEnv) procBody
 
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
@@ -131,7 +132,7 @@ eval _   val@(SDottedList _ _) = throwError $ BadForm "Can't eval dotted list" v
 eval _   val@(SVector _)       = throwError $ BadForm "Can't eval vector" val
 
 eval _   val@(SBool _)         = return val
-eval _   val@(SChar _)    = return val
+eval _   val@(SChar _)         = return val
 eval _   val@(SString _)       = return val
 eval _   val@(SNumber _)       = return val
 
@@ -139,6 +140,13 @@ eval env (SSymbol varName)     = getVar env varName
 
 eval _   (SList [SSymbol "quote", val])      = return val
 eval env (SList [SSymbol "quasiquote", val]) = evalQuasiquoted env val
+
+eval env (SList [SSymbol "eval",  val]) = eval env val
+-- eval env (SList [SSymbol "load",  val]) = case val of
+  -- SString filename -> liftIO $ readFile filename
+  --                     >>= readExprs filename contents
+  --                     >>= mapM_ eval
+  --                     >> return (SList [])
 
 eval env (Lambda params body) =
   liftThrows $ makeProc ProcSpec

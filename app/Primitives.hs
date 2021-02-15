@@ -1,6 +1,8 @@
+{-# LANGUAGE LambdaCase #-}
 module Primitives ( primitives ,ioPrimitives) where
 
-import Control.Monad.Except ( throwError )
+
+import Control.Monad.Except ( throwError, liftIO )
 
 import Types
   ( IOSchemeValOrError
@@ -9,21 +11,94 @@ import Types
   , SchemeError (..)
   , SchemeValOrError
   )
-import Eval (eval, apply)
+import Eval
+  ( apply
+  -- , eval
+  )
 
 import Data.Complex (Complex((:+)), realPart, imagPart)
 import Control.Monad (zipWithM)
+import qualified Data.Bifunctor
+import qualified System.IO as IO
+import Data.Functor ((<&>))
 
 ioPrimitives :: [(String, SchemeVal)]
-ioPrimitives = [ ("apply", SIOProc wrappedApply)
-               -- , ("eval",  SIOProc $ wrap eval) -- need env type
-               ]
+ioPrimitives = map (Data.Bifunctor.second SIOProc)
+  [ ("apply", wrappedApply)
+
+  , ("open-input-file", makePort IO.ReadMode)
+  , ("open-output-file", makePort IO.WriteMode)
+  , ("close-input-file", closePort)
+  , ("close-output-file", closePort)
+
+  , ("read-char", readChar)
+  , ("peek-char", peekChar)
+  -- , ("read", read)
+
+  , ("write", write)
+  , ("write-string", writeString)
+  ]
   where
     wrappedApply [proc', SList args] = apply proc' args
-    -- TODO: remaining cases
+    wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
+    wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
+
+    makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
+    makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
+    makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
+    makePort _    badArgs            = throwError $ NumArgs 1 badArgs
+
+    closePort :: [SchemeVal] -> IOSchemeValOrError
+    closePort [SPort handle] = liftIO $ IO.hClose handle >> return (SList [])
+    closePort [nonPort]      = throwError $ TypeMismatch "port" nonPort
+    closePort badArgs        = throwError $ NumArgs 1 badArgs
+
+    _inputPortProc
+      :: (IO.Handle -> IO SchemeVal)
+      -> ([SchemeVal] -> IOSchemeValOrError)
+    _inputPortProc f = \case
+      -- TODO: default to current-input-port
+      [SPort handle] -> liftIO $ f handle
+      [nonPort]      -> throwError $ TypeMismatch "port" nonPort
+      badArgs        -> throwError $ NumArgs 1 badArgs
+
+    _outputPortProc
+      :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
+      -> ([SchemeVal] -> IOSchemeValOrError)
+    _outputPortProc f = \case
+      -- TODO: default to current-input-port
+      [SPort handle, val] -> f handle val >> return (SList [])
+      [nonPort, _]        -> throwError $ TypeMismatch "port" nonPort
+      badArgs             -> throwError $ NumArgs 1 badArgs
+
+    readChar :: [SchemeVal] -> IOSchemeValOrError
+    readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
+
+    peekChar :: [SchemeVal] -> IOSchemeValOrError
+    peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
+
+    -- read :: [SchemeVal] -> IOSchemeValeOrError
+    -- read = do
+    --   string <- hGetContents handle
+    --   parsed <- readExpr
+    --   length <- getLengthUnparsed (???)
+    --   hSeek handle length
+    --   return parsed
+
+    writeString :: [SchemeVal] -> IOSchemeValOrError
+    writeString = _outputPortProc $ \handle val -> case val of
+      SString string -> liftIO $ IO.hPutStr handle string
+                        >> return (SList [])
+      nonString -> throwError $ TypeMismatch "string" nonString
+
+    write :: [SchemeVal] -> IOSchemeValOrError
+    write = _outputPortProc $
+      \handle val -> liftIO $ IO.hPutStr handle (show val)
+                     >> return (SList [])
+
 
 primitives :: [(String, SchemeVal)]
-primitives = map (\ (name, f) -> (name, SPrimativeProc f))
+primitives = map (Data.Bifunctor.second SPrimativeProc)
   [ ("+",         numericFoldableOp add)
   , ("-",         numericFoldableOp subtract_)
   , ("*",         numericFoldableOp multiply)

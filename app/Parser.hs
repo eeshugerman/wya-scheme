@@ -9,8 +9,9 @@ import Numeric ( readFloat, readHex, readOct )
 
 import Types
   ( SchemeNumber(..)
-  , SchemeVal(..)
+  , SchemeVal(..), SchemeError (ParseError), SchemeValOrError
   )
+import Control.Monad.Except (throwError)
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
 -- TODO: use `SchemeError`, not `error`
@@ -229,3 +230,16 @@ parseExpr = parseCharacter
 
 parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces
+
+
+readOrThrow :: P.Parser a -> String -> String -> Either SchemeError a
+readOrThrow parser streamName input =
+  case P.parse parser streamName input of
+    Left err -> throwError $ ParseError err
+    Right val -> return val
+
+readExpr :: String -> String -> SchemeValOrError
+readExpr = readOrThrow parseExpr
+
+readExprs :: String -> String -> Either SchemeError [SchemeVal]
+readExprs = readOrThrow parseExprs
