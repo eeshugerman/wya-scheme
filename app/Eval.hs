@@ -5,7 +5,7 @@
 module Eval where
 
 import Data.Maybe (isNothing)
-import Control.Monad.Except (throwError, liftIO)
+import Control.Monad.Except (throwError, liftIO, ExceptT)
 
 import Types
   ( SchemeValOrError
@@ -18,7 +18,7 @@ import Env (getVar , defineVar , setVar, extendWith)
 import Parser (readExprs)
 
 
-liftThrows :: SchemeValOrError -> IOSchemeValOrError
+liftThrows :: Either SchemeError a -> ExceptT SchemeError IO a
 liftThrows = \case
   Left err -> throwError err
   Right val -> return val
@@ -139,14 +139,18 @@ eval _   val@(SNumber _)       = return val
 eval env (SSymbol varName)     = getVar env varName
 
 eval _   (SList [SSymbol "quote", val])      = return val
+
 eval env (SList [SSymbol "quasiquote", val]) = evalQuasiquoted env val
 
 eval env (SList [SSymbol "eval",  val]) = eval env val
--- eval env (SList [SSymbol "load",  val]) = case val of
-  -- SString filename -> liftIO $ readFile filename
-  --                     >>= readExprs filename contents
-  --                     >>= mapM_ eval
-  --                     >> return (SList [])
+
+eval env (SList [SSymbol "load",  val]) = case val of
+  SString filename ->
+    liftIO (readFile filename)
+    >>= liftThrows . readExprs filename
+    >>= mapM_ (eval env)
+    >> return (SList [])
+  badArg -> throwError $ TypeMismatch "string" badArg
 
 eval env (Lambda params body) =
   liftThrows $ makeProc ProcSpec
