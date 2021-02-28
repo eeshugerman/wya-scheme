@@ -12,7 +12,6 @@ import Types
   ( Env
   , SchemeVal
   , SchemeValOrError
-  , SchemeError (ParseError)
   )
 
 

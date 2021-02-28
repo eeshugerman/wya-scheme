@@ -84,17 +84,19 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
     --   length <- getLengthUnparsed (???)
     --   hSeek handle length
     --   return parsed
+    -- alternatively: somehow let parsec handle seeking?
 
     writeString :: [SchemeVal] -> IOSchemeValOrError
     writeString = _outputPortProc $ \handle val -> case val of
-      SString string -> liftIO $ IO.hPutStr handle string
-                        >> return (SList [])
+      SString string ->
+        liftIO $ IO.hPutStr handle string
+        >> return (SList [])
       nonString -> throwError $ TypeMismatch "string" nonString
 
     write :: [SchemeVal] -> IOSchemeValOrError
-    write = _outputPortProc $
-      \handle val -> liftIO $ IO.hPutStr handle (show val)
-                     >> return (SList [])
+    write = _outputPortProc $ \handle val ->
+        liftIO $ IO.hPutStr handle (show val)
+        >> return (SList [])
 
 
 primitives :: [(String, SchemeVal)]
@@ -122,26 +124,26 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
 
-  , ("=", numBoolBinOp (==))
-  , ("<", numBoolBinOp (<))
-  , (">", numBoolBinOp (>))
-  , ("/=", numBoolBinOp (/=))
-  , (">=", numBoolBinOp (>=))
-  , ("<=", numBoolBinOp (<=))
-  , ("and", boolBoolBinOp (&&))
-  , ("or", boolBoolBinOp (||))
-  , ("string=?", strBoolBinOp (==))
-  , ("string<?", strBoolBinOp (<))
-  , ("string>?", strBoolBinOp (>))
-  , ("string<=?", strBoolBinOp (<=))
-  , ("string>=?", strBoolBinOp (>=))
+  , ("=",           numBoolBinOp (==))
+  , ("<",           numBoolBinOp (<))
+  , (">",           numBoolBinOp (>))
+  , ("/=",          numBoolBinOp (/=))
+  , (">=",          numBoolBinOp (>=))
+  , ("<=",          numBoolBinOp (<=))
+  , ("and",         boolBoolBinOp (&&))
+  , ("or",          boolBoolBinOp (||))
+  , ("string=?",    strBoolBinOp (==))
+  , ("string<?",    strBoolBinOp (<))
+  , ("string>?",    strBoolBinOp (>))
+  , ("string<=?",   strBoolBinOp (<=))
+  , ("string>=?",   strBoolBinOp (>=))
 
-  , ("car", car)
-  , ("cdr", cdr)
-  , ("cons", cons)
+  , ("car",         car)
+  , ("cdr",         cdr)
+  , ("cons",        cons)
 
-  , ("eqv?", eqv)
-  , ("equal?", equal)
+  , ("eqv?",        eqv)
+  , ("equal?",      equal)
   ]
 
 
@@ -164,15 +166,15 @@ numericFoldableOp op args           = foldl1M wrappedOp args
 
     wrappedOp :: SchemeVal -> SchemeVal -> SchemeValOrError
     wrappedOp (SNumber a) (SNumber b) = return $ SNumber $ op a b
-    wrappedOp a              (SNumber _) = throwError $ TypeMismatch "number" a
-    wrappedOp (SNumber _) b              = throwError $ TypeMismatch "number" b
-    wrappedOp a              _              = throwError $ TypeMismatch "number" a
+    wrappedOp a           (SNumber _) = throwError $ TypeMismatch "number" a
+    wrappedOp (SNumber _) b           = throwError $ TypeMismatch "number" b
+    wrappedOp a           _           = throwError $ TypeMismatch "number" a
 
 boolBinOp
   :: (SchemeVal -> Either SchemeError a)  -- unpacker
-  -> (a -> a -> Bool)                 -- op
-  -> [SchemeVal]                        -- args
-  -> SchemeValOrError                   -- result
+  -> (a -> a -> Bool)                     -- op
+  -> [SchemeVal]                          -- args
+  -> SchemeValOrError                     -- result
 boolBinOp unpacker op args =
   if length args /= 2
   then throwError $ NumArgs 2 args

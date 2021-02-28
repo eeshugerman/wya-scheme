@@ -30,7 +30,7 @@ evalQuasiquoted env (SList list') = let
   quasiquote val = SList [SSymbol "quasiquote", val]
 
   iter
-    :: Integer    -- quasiquote level
+    :: Integer      -- quasiquote level
     -> [SchemeVal]  -- accumulator
     -> [SchemeVal]  -- remaining
     -> IOSchemeValOrError
@@ -96,7 +96,8 @@ apply SProc {..} args = let
   numParams' = length procParams
   numParams  = toInteger numParams'
   numArgs    = toInteger $ length args
-  in if (numParams > numArgs) || (numParams < numArgs && isNothing procVarParam)
+  in if (numParams > numArgs) ||
+        (numParams < numArgs && isNothing procVarParam)
      then throwError $ NumArgs numParams args
      else let
        remainingArgs = drop numParams' args
@@ -112,19 +113,31 @@ apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
 pattern Lambda :: [SchemeVal] -> [SchemeVal] -> SchemeVal
 pattern Lambda params body <- SList
-  (SSymbol "lambda" : SList params : body)
+  ( SSymbol "lambda" : SList params : body)
 
-pattern VariadicLambda :: [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
-pattern VariadicLambda params varParam body <-
-  SList (SSymbol "lambda" : SDottedList params varParam : body)
+pattern VariadicLambda
+  :: [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
+pattern VariadicLambda params varParam body <- SList
+  ( SSymbol "lambda"
+    : SDottedList params varParam
+    : body
+  )
 
-pattern ProcDef :: String -> [SchemeVal] -> [SchemeVal] -> SchemeVal
+pattern ProcDef
+  :: String -> [SchemeVal] -> [SchemeVal] -> SchemeVal
 pattern ProcDef name params body <- SList
-  (SSymbol "define" : SList (SSymbol name : params) : body)
+  ( SSymbol "define"
+    : SList (SSymbol name : params)
+    : body
+  )
 
-pattern VariadicProcDef :: String -> [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
+pattern VariadicProcDef
+  :: String -> [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
 pattern VariadicProcDef name params varParam body <- SList
-  (SSymbol "define" : SDottedList (SSymbol name : params) varParam : body)
+  ( SSymbol "define"
+    : SDottedList (SSymbol name : params) varParam
+    : body
+  )
 
 
 eval :: Env -> SchemeVal -> IOSchemeValOrError

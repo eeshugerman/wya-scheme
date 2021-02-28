@@ -51,3 +51,4 @@ bar
 
 (foo 1 2 3 4)
 
+(define (add a b) (+ 1 2))
