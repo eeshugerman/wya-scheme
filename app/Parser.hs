@@ -2,7 +2,7 @@
 
 module Parser where
 import qualified Text.ParserCombinators.Parsec as P
-import Text.ParserCombinators.Parsec ((<|>))
+import Text.ParserCombinators.Parsec ( (<|>) )
 import Data.Char ( toLower )
 import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
@@ -231,6 +231,11 @@ parseExpr = parseCharacter
 parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces
 
+parseExprWithPos :: P.Parser (P.SourcePos, SchemeVal)
+parseExprWithPos = do
+  expr <- parseExpr
+  pos <- P.getPosition
+  return (pos, expr)
 
 readOrThrow :: P.Parser a -> String -> String -> Either SchemeError a
 readOrThrow parser streamName input =
@@ -243,3 +248,6 @@ readExpr = readOrThrow parseExpr
 
 readExprs :: String -> String -> Either SchemeError [SchemeVal]
 readExprs = readOrThrow parseExprs
+
+readExprWithPos :: String -> String -> Either SchemeError (P.SourcePos, SchemeVal)
+readExprWithPos = readOrThrow parseExprWithPos

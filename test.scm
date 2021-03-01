@@ -1,6 +1,4 @@
-(+ 1.2 4/5 5)
-(* 2 3+1.5i)
-(symbol? 'foo)
+(+ 1.2 4/5 5) (* 2 3+1.5i) (symbol? 'foo)
 (string=? "foo" "bar")
 (string=? "foo" "foo")
 (= 1 1)

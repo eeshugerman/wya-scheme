@@ -2,7 +2,14 @@
 module Primitives ( primitives ,ioPrimitives) where
 
 
+import Data.Complex (Complex((:+)), realPart, imagPart)
+import Control.Monad (zipWithM)
+import qualified Data.Bifunctor
+import qualified System.IO as IO
+import qualified GHC.IO.Handle
+import Data.Functor ((<&>))
 import Control.Monad.Except ( throwError, liftIO )
+import qualified Text.Parsec.Pos as Parsec
 
 import Types
   ( IOSchemeValOrError
@@ -11,32 +18,24 @@ import Types
   , SchemeError (..)
   , SchemeValOrError
   )
-import Eval
-  ( apply
-  -- , eval
-  )
-
-import Data.Complex (Complex((:+)), realPart, imagPart)
-import Control.Monad (zipWithM)
-import qualified Data.Bifunctor
-import qualified System.IO as IO
-import Data.Functor ((<&>))
+import Eval (apply, liftThrows)
+import Parser (readExprWithPos)
 
 ioPrimitives :: [(String, SchemeVal)]
 ioPrimitives = map (Data.Bifunctor.second SIOProc)
-  [ ("apply", wrappedApply)
+  [ ("apply",              wrappedApply)
 
-  , ("open-input-file", makePort IO.ReadMode)
-  , ("open-output-file", makePort IO.WriteMode)
-  , ("close-input-file", closePort)
-  , ("close-output-file", closePort)
+  , ("open-input-file",    makePort IO.ReadMode)
+  , ("open-output-file",   makePort IO.WriteMode)
+  , ("close-input-file",   closePort)
+  , ("close-output-file",  closePort)
 
-  , ("read-char", readChar)
-  , ("peek-char", peekChar)
-  -- , ("read", read)
+  , ("read-char",          readChar)
+  , ("peek-char",          peekChar)
+  , ("read",               read_)
 
-  , ("write", write)
-  , ("write-string", writeString)
+  , ("write",              write)
+  , ("write-string",       writeString)
   ]
   where
     wrappedApply [proc', SList args] = apply proc' args
@@ -77,13 +76,29 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
     peekChar :: [SchemeVal] -> IOSchemeValOrError
     peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
 
-    -- read :: [SchemeVal] -> IOSchemeValeOrError
-    -- read = do
-    --   string <- hGetContents handle
-    --   parsed <- readExpr
-    --   length <- getLengthUnparsed (???)
-    --   hSeek handle length
-    --   return parsed
+    -- this is a bit gruesome, but i can't find a better way to do it with
+    -- parsec. attoparsec, on the other hand, has built-in support for
+    -- incremental parsing
+    read_ :: [SchemeVal] -> IOSchemeValOrError
+    read_ [SPort handle] = do
+      -- unfortunately there's no way around hGetContents closing the handle,
+      -- so we work with a duplicate
+      tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
+      string <- liftIO $ IO.hGetContents tempHandle
+      (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
+      liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
+      liftIO $ IO.hClose tempHandle
+      return parsed
+      where
+        posToBytes :: Parsec.SourcePos -> String -> Integer
+        posToBytes pos source = let
+          precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
+          in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
+
+
+
+    read_ [nonPort]      = throwError $ TypeMismatch "port" nonPort
+    read_ badArgs       = throwError $ NumArgs 1 badArgs
     -- alternatively: somehow let parsec handle seeking?
 
     writeString :: [SchemeVal] -> IOSchemeValOrError
@@ -178,7 +193,7 @@ boolBinOp
 boolBinOp unpacker op args =
   if length args /= 2
   then throwError $ NumArgs 2 args
-  else do left <- unpacker $ args !! 0
+  else do left <- unpacker $ head args
           right <- unpacker $ args !! 1
           return $ SBool $ left `op` right
 
@@ -220,12 +235,12 @@ add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
 
 add (SInteger a)              (SInteger b)              = SInteger (a + b)
 add (SInteger a)              (SReal b)                 = SReal (fromInteger a + b)
-add (SInteger a)              (SRational bNumer bDenom) = SRational ((a * bDenom) + bNumer) bDenom
+add (SInteger a)              (SRational bNumer bDenom) = SRational (a * bDenom + bNumer) bDenom
 add a@(SInteger _)            (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
 add a@(SReal _)               b@(SInteger _)            = add b a
 add (SReal a)                 (SReal b)                 = SReal (a + b)
-add (SReal a)                 (SRational bNumer bDenom) = SReal (a + (fromInteger bNumer / fromInteger bDenom))
+add (SReal a)                 (SRational bNumer bDenom) = SReal (a + fromInteger bNumer / fromInteger bDenom)
 add a@(SReal _)               (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
 add a@(SRational _ _)         b@(SInteger _)            = add b a
@@ -243,7 +258,7 @@ addRationals
   -> Integer -> Integer -- b
   -> SchemeNumber         -- res
 addRationals aNumer aDenom bNumer bDenom =
-  let numer = (aNumer * bDenom) + (bNumer * aDenom)
+  let numer = aNumer * bDenom + bNumer * aDenom
       denom = aDenom * bDenom
   in SRational numer denom
 
