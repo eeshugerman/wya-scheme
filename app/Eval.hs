@@ -90,7 +90,7 @@ makeProc ProcSpec{..} =
 apply :: SchemeVal -> [SchemeVal] -> IOSchemeValOrError
 
 apply (SPrimativeProc proc') args = liftThrows $ proc' args
-apply (SIOProc proc') args        = proc' args
+apply (SIOProc proc') args = proc' args
 
 apply SProc {..} args = let
   numParams' = length procParams
@@ -139,6 +139,8 @@ pattern VariadicProcDef name params varParam body <- SList
     : body
   )
 
+nil :: SchemeVal
+nil = SList []
 
 eval :: Env -> SchemeVal -> IOSchemeValOrError
 eval _   val@(SDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
@@ -151,7 +153,7 @@ eval _   val@(SNumber _)       = return val
 
 eval env (SSymbol varName)     = getVar env varName
 
-eval _   (SList [SSymbol "quote", val])      = return val
+eval _   (SList [SSymbol "quote", val]) = return val
 
 eval env (SList [SSymbol "quasiquote", val]) = evalQuasiquoted env val
 
@@ -159,10 +161,10 @@ eval env (SList [SSymbol "eval",  val]) = eval env val
 
 eval env (SList [SSymbol "load",  val]) = case val of
   SString filename ->
-    liftIO (readFile filename)
-    >>= liftThrows . readExprs filename
-    >>= mapM_ (eval env)
-    >> return (SList [])
+    liftIO (readFile filename) >>=
+    liftThrows . readExprs filename >>=
+    mapM_ (eval env) >>
+    return nil
   badArg -> throwError $ TypeMismatch "string" badArg
 
 eval env (Lambda params body) =
@@ -191,12 +193,12 @@ eval env (SList [SSymbol "if", predicate, consq, alt]) =
 eval env (SList [SSymbol "set!", SSymbol varName, form]) =
   do val <- eval env form
      setVar env varName val
-     return $ SList []
+     return nil
 
 eval env (SList [SSymbol "define", SSymbol varName, form]) =
   do val <- eval env form
      liftIO $ defineVar env varName val
-     return $ SList []
+     return nil
 
 eval env (ProcDef name params body) =
   do proc' <- liftThrows $ makeProc ProcSpec
@@ -207,7 +209,7 @@ eval env (ProcDef name params body) =
        , psBody     = body
        }
      liftIO $ defineVar env name proc'
-     return $ SList []
+     return nil
 
 eval env (VariadicProcDef name params varParam body) =
   do proc' <- liftThrows $ makeProc ProcSpec
@@ -218,7 +220,7 @@ eval env (VariadicProcDef name params varParam body) =
        , psBody     = body
        }
      liftIO $ defineVar env name proc'
-     return $ SList []
+     return nil
 
 eval env (SList (procExpr:args)) =
   do proc' <- eval env procExpr

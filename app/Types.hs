@@ -19,11 +19,12 @@ import GHC.IO.Handle (Handle)
 unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map showSchemeVal
 
-data SchemeNumber = SComplex SchemeNumber SchemeNumber  -- TODO: use Data.Complex.Complex
-                  | SReal Float
-                  | SRational Integer Integer  -- TODO: use Data.Ratio.Rational
-                  | SInteger Integer
-                  deriving Eq
+data SchemeNumber
+  = SComplex SchemeNumber SchemeNumber  -- TODO: use Data.Complex.Complex
+  | SReal Float
+  | SRational Integer Integer  -- TODO: use Data.Ratio.Rational
+  | SInteger Integer
+  deriving Eq
 
 instance Show SchemeNumber where show = showSchemeNumber
 
@@ -48,22 +49,24 @@ showSchemeNumber = \case
     maybePlusStr :: (Num a, Ord a) => a -> String
     maybePlusStr val = if val > 0 then "+" else ""
 
-data SchemeVal = SSymbol String
-               | SBool Bool
-               | SChar Char
-               | SString String
-               | SNumber SchemeNumber
-               | SList [SchemeVal]
-               | SVector (A.Array Int SchemeVal)
-               | SDottedList [SchemeVal] SchemeVal
-               | SPort Handle
-               | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
-               | SIOProc ([SchemeVal] -> IOSchemeValOrError)
-               | SProc { procParams    :: [String]
-                       , procVarParam  :: Maybe String
-                       , procBody      :: [SchemeVal]
-                       , procClosure   :: Env
-                       }
+data SchemeVal
+  = SSymbol String
+  | SBool Bool
+  | SChar Char
+  | SString String
+  | SNumber SchemeNumber
+  | SList [SchemeVal]
+  | SVector (A.Array Int SchemeVal)
+  | SDottedList [SchemeVal] SchemeVal
+  | SPort Handle
+  | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
+  | SIOProc ([SchemeVal] -> IOSchemeValOrError)
+  | SProc
+    { procParams    :: [String]
+    , procVarParam  :: Maybe String
+    , procBody      :: [SchemeVal]
+    , procClosure   :: Env
+    }
 
 instance Show SchemeVal where show = showSchemeVal
 
@@ -89,12 +92,13 @@ showSchemeVal = \case
         Just val  -> ". " ++ val
 
 
-data SchemeError = NumArgs Integer [SchemeVal]
-                 | TypeMismatch String SchemeVal
-                 | ParseError ParseError
-                 | BadForm String SchemeVal
-                 | UnboundVar String
-                 | Default String
+data SchemeError
+  = NumArgs Integer [SchemeVal]
+  | TypeMismatch String SchemeVal
+  | ParseError ParseError
+  | BadForm String SchemeVal
+  | UnboundVar String
+  | Default String
 
 instance Show SchemeError where show = showSchemeError
 

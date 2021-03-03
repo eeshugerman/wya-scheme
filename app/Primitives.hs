@@ -95,11 +95,8 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
           precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
           in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
 
-
-
-    read_ [nonPort]      = throwError $ TypeMismatch "port" nonPort
-    read_ badArgs       = throwError $ NumArgs 1 badArgs
-    -- alternatively: somehow let parsec handle seeking?
+    read_ [nonPort] = throwError $ TypeMismatch "port" nonPort
+    read_ badArgs   = throwError $ NumArgs 1 badArgs
 
     writeString :: [SchemeVal] -> IOSchemeValOrError
     writeString = _outputPortProc $ \handle val -> case val of
@@ -425,7 +422,7 @@ car [arg] = case arg of
 car args                   = throwError $ NumArgs 1 args
 
 cdr :: [SchemeVal] -> SchemeValOrError
-cdr empty@[]                   = throwError $ NumArgs 1 empty
+cdr empty@[]                 = throwError $ NumArgs 1 empty
 cdr [arg] = case arg of
   SList (_:xs)              -> return $ SList xs
   empty@(SList [])          -> throwError $ TypeMismatch "pair" empty
