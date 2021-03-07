@@ -1,8 +1,12 @@
+(integer? "asdf")
+(real? 1)
+
 (+ 1.2 4/5 5) (* 2 3+1.5i) (symbol? 'foo)
 (string=? "foo" "bar")
 (string=? "foo" "foo")
 (= 1 1)
 (= 1 1.0)
+
 
 ``(1 ,"foo" ,(2 ,(/ 1.0 5)))
 

@@ -125,11 +125,11 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("boolean?",     isBoolean)
   , ("character?",   isCharacter)
   , ("string?",      isString)
-  , ("number?",      isNumber)
-  , ("integer?",     isInteger)
-  , ("rational?",    isRational)
-  , ("real?",        isReal)
-  , ("complex?",     isComplex)
+  , ("number?",      isNumTypeOp _isNumber)
+  , ("complex?",     isNumTypeOp _isComplex)
+  , ("real?",        isNumTypeOp _isReal)
+  , ("rational?",    isNumTypeOp _isRational)
+  , ("integer?",     isNumTypeOp _isInteger)
   , ("list?",        isList)
   , ("vector?",      isVector)
 
@@ -360,37 +360,34 @@ isVector [_]          = return $ SBool False
 isVector args         = throwError $ NumArgs 1 args
 
 -- num type stuff
--- todo: this is dumb, arguably. maybe don't be fancy.
-data NumType = Number | Complex | Real | Rational | Integer
-isNumType :: NumType -> SchemeNumber -> Bool
-isNumType Number   _   = True
-isNumType Complex  _   = True
-isNumType Real     val = case val of SComplex _ _  -> False
-                                     _             -> isNumType Complex val
-isNumType Rational val = case val of SReal _       -> False
-                                     _             -> isNumType Real val
-isNumType Integer  val = case val of SRational _ _ -> False
-                                     _             -> isNumType Rational val
+_isNumber :: SchemeNumber -> Bool
+_isNumber = const True
 
-isNumTypeWrapper :: NumType -> [SchemeVal] -> SchemeValOrError
-isNumTypeWrapper numType [SNumber num] = return $ SBool $ isNumType numType num
-isNumTypeWrapper _       [_]           = return $ SBool False
-isNumTypeWrapper _       args          = throwError $ NumArgs 1 args
+_isComplex :: SchemeNumber -> Bool
+_isComplex = const True
 
-isNumber :: [SchemeVal] -> SchemeValOrError
-isNumber = isNumTypeWrapper Number
+_isReal :: SchemeNumber -> Bool
+_isReal = \case
+  SComplex _ _ -> False
+  val          -> _isComplex val
 
-isComplex :: [SchemeVal] -> SchemeValOrError
-isComplex = isNumTypeWrapper Complex
+_isRational :: SchemeNumber -> Bool
+_isRational = \case
+  SReal _  -> False
+  val      -> _isReal val
 
-isReal :: [SchemeVal] -> SchemeValOrError
-isReal = isNumTypeWrapper Real
+_isInteger :: SchemeNumber -> Bool
+_isInteger = \case
+  SRational _ _ -> False
+  val           -> _isRational val
 
-isRational :: [SchemeVal] -> SchemeValOrError
-isRational = isNumTypeWrapper Rational
-
-isInteger :: [SchemeVal] -> SchemeValOrError
-isInteger = isNumTypeWrapper Integer
+isNumTypeOp
+  :: (SchemeNumber -> Bool)
+  -> ([SchemeVal] -> SchemeValOrError)
+isNumTypeOp test = \case
+  [SNumber num] -> return $ SBool $ test num
+  [_]           -> return $ SBool False
+  args          -> throwError $ NumArgs 1 args
 
 -----------------------------------------
 -- type conversion
