@@ -4,17 +4,22 @@ module Parser where
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ( (<|>) )
 import Data.Char ( toLower )
+import Data.Complex (Complex((:+)))
 import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  ( SchemeNumber(..)
-  , SchemeVal(..), SchemeError (ParseError), SchemeValOrError
+  ( SchemeReal(..)
+  , SchemeNumber(..)
+  , SchemeVal(..)
+  , SchemeError (ParseError)
+  , SchemeValOrError
   )
 import Control.Monad.Except (throwError)
+import Data.Ratio ((%))
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
--- TODO: use `SchemeError`, not `error`
+-- TODO: use `unexpected` and/or `<?>`, not `error`
 
 data Sign = Plus | Minus
 data Radix = Binary | Octal | Decimal | Hex
@@ -87,12 +92,12 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
-parseInteger :: P.Parser SchemeNumber
+parseInteger :: P.Parser SchemeReal
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
   digits <- P.many1 $ allowedDigits radix
-  return . SInteger . applySign sign $ readInt radix digits
+  return . SInteger' . applySign sign $ readInt radix digits
   where
     readInt :: Radix -> String -> Integer
     readInt = \case
@@ -126,17 +131,17 @@ parseInteger = P.try $ do
       Hex ->     P.oneOf "0123456789abcdefABCDEF"
 
 
-parseRational :: P.Parser SchemeNumber
+parseRational :: P.Parser SchemeReal
 parseRational = P.try $ do
   sign <- parseSign
   numerator <- P.many1 P.digit
   P.char '/'
   denominator <- P.many1 P.digit
-  return $ SRational (applySign sign $ read numerator) (read denominator)
+  return $ SRational' $ applySign sign (read numerator) % read denominator
 
 
 -- TODO: #e / #i
-parseReal :: P.Parser SchemeNumber
+parseReal :: P.Parser SchemeReal
 parseReal = P.try $ do
   sign <- parseSign
   whole <- P.many P.digit
@@ -146,20 +151,24 @@ parseReal = P.try $ do
     then P.pzero   -- do a fail
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
-         in return $ SReal $ applySign sign mag
-
+         in return $ SReal' $ applySign sign mag
 
 parseComplex :: P.Parser SchemeNumber
 parseComplex = P.try $ do
-  real <- P.try parseReal <|> P.try parseRational <|> parseInteger
-  imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
+  let component = P.try parseReal <|> P.try parseRational <|> parseInteger
+  real <- component
+  imag <- component
   P.char 'i'
-  return $ SComplex real imag
+  return $ SComplex (real :+ imag)
 
 parseNumber :: P.Parser SchemeVal
-parseNumber = fmap
-  SNumber
-  (parseReal <|> parseRational <|> parseComplex <|> parseInteger)
+parseNumber = SchemeNumber <$> P.choice
+     [ parseComplex
+     , wrap parseReal
+     , wrap parseRational
+     , wrap parseInteger
+     ] where wrap = fmap SchemeReal
+
 
 parseSchemeVals :: P.Parser [SchemeVal]
 -- endBy is like sepBy except if there's seperator at the end it will be consumed
@@ -216,17 +225,19 @@ parseVector = do
 
 
 parseExpr :: P.Parser SchemeVal
-parseExpr = parseCharacter
-         <|> parseBool
-         <|> parseNumber
-         <|> parseSymbol
-         <|> parseVector
-         <|> parseString
-         <|> parseQuoted
-         <|> parseUnquotedSplicing
-         <|> parseUnquoted
-         <|> parseQuasiquoted
-         <|> parseListOrDottedList
+parseExpr = P.choice
+  [ parseCharacter
+  , parseBool
+  , parseNumber
+  , parseSymbol
+  , parseVector
+  , parseString
+  , parseQuoted
+  , parseUnquotedSplicing
+  , parseUnquoted
+  , parseQuasiquoted
+  , parseListOrDottedList
+  ]
 
 parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces

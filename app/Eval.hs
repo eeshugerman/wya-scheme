@@ -104,9 +104,9 @@ apply SProc {..} args = let
        paramsArgsMap = zip procParams args ++ case procVarParam of
          Just varParamName -> [(varParamName, SList remainingArgs)]
          Nothing           -> []
-     in do
-       procEnv <- liftIO $ extendWith paramsArgsMap procClosure
-       last $ map (eval procEnv) procBody
+       in do
+         procEnv <- liftIO $ extendWith paramsArgsMap procClosure
+         last $ map (eval procEnv) procBody
 
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
@@ -149,7 +149,7 @@ eval _   val@(SVector _)       = throwError $ BadForm "Can't eval vector" val
 eval _   val@(SBool _)         = return val
 eval _   val@(SChar _)         = return val
 eval _   val@(SString _)       = return val
-eval _   val@(SNumber _)       = return val
+eval _   val@(SchemeNumber _)       = return val
 
 eval env (SSymbol varName)     = getVar env varName
 
