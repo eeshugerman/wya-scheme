@@ -59,7 +59,7 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
       -- TODO: default to current-input-port
       [SPort handle] -> liftIO $ f handle
       [nonPort]      -> throwError $ TypeMismatch "port" nonPort
-      badArgs        -> throwError $ NumArgs 1 badArgs
+      badArgs        -> throwError $ NumArgs 2 badArgs
 
     _outputPortProc
       :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
@@ -68,7 +68,7 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
       -- TODO: default to current-input-port
       [SPort handle, val] -> f handle val >> return (SList [])
       [nonPort, _]        -> throwError $ TypeMismatch "port" nonPort
-      badArgs             -> throwError $ NumArgs 1 badArgs
+      badArgs             -> throwError $ NumArgs 2 badArgs
 
     readChar :: [SchemeVal] -> IOSchemeValOrError
     readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
