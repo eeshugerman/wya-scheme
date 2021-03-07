@@ -11,10 +11,10 @@ module Types
 
 import Data.IORef
 import qualified Data.Array as A
-import Text.Parsec ( ParseError )
+import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
-
+import Data.Ratio (numerator, denominator)
 
 unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map showSchemeVal
@@ -22,7 +22,7 @@ unwordsList = unwords . map showSchemeVal
 data SchemeNumber
   = SComplex SchemeNumber SchemeNumber  -- TODO: use Data.Complex.Complex
   | SReal Float
-  | SRational Integer Integer  -- TODO: use Data.Ratio.Rational
+  | SRational Rational
   | SInteger Integer
   deriving Eq
 
@@ -31,7 +31,7 @@ instance Show SchemeNumber where show = showSchemeNumber
 showSchemeNumber :: SchemeNumber -> String
 showSchemeNumber = \case
   SInteger val          -> show val
-  SRational numer denom -> show numer ++ "/" ++ show denom
+  SRational val -> show (numerator val) ++ "/" ++ show (denominator val)
   SReal val             -> show val
   SComplex real imag    -> showComplex real imag
   where
@@ -42,7 +42,7 @@ showSchemeNumber = \case
     showWithSign = \case
       SInteger val            -> maybePlusStr val ++ show val
       SReal val               -> maybePlusStr val ++ show val
-      val@(SRational numer _) -> maybePlusStr numer ++ showSchemeNumber val
+      val@(SRational val')    -> maybePlusStr (numerator val') ++ showSchemeNumber val
       SComplex _ _            -> error "internal error: `imag` is a complex number. "
                                     ++ "this expression should not have parsed."
 

@@ -12,6 +12,7 @@ import Types
   , SchemeVal(..), SchemeError (ParseError), SchemeValOrError
   )
 import Control.Monad.Except (throwError)
+import Data.Ratio ((%))
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
 -- TODO: use `SchemeError`, not `error`
@@ -132,7 +133,7 @@ parseRational = P.try $ do
   numerator <- P.many1 P.digit
   P.char '/'
   denominator <- P.many1 P.digit
-  return $ SRational (applySign sign $ read numerator) (read denominator)
+  return $ SRational $ applySign sign (read numerator) % read denominator
 
 
 -- TODO: #e / #i

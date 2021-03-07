@@ -10,6 +10,7 @@ import qualified GHC.IO.Handle
 import Data.Functor ((<&>))
 import Control.Monad.Except ( throwError, liftIO )
 import qualified Text.Parsec.Pos as Parsec
+import Data.Ratio ((%))
 
 import Types
   ( IOSchemeValOrError
@@ -205,7 +206,7 @@ numBoolBinOp = boolBinOp unpackNum
     unpackNum :: SchemeVal -> Either SchemeError Float
     unpackNum (SNumber num) = case num of
       SInteger val          -> return $ fromInteger val
-      SRational numer denom -> return (fromInteger numer / fromInteger denom)
+      SRational val         -> return $ fromRational val
       SReal val             -> return val
       SComplex _ _          -> throwError $
         Default "operation not implemented for complex numbers" -- TODO
@@ -246,57 +247,48 @@ isNumTypeOp test = \case
 add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
 -----------------------------------
 
-add (SInteger a)              (SInteger b)              = SInteger (a + b)
-add (SInteger a)              (SReal b)                 = SReal (fromInteger a + b)
-add (SInteger a)              (SRational bNumer bDenom) = SRational (a * bDenom + bNumer) bDenom
+add (SInteger a)              (SInteger b)              = SInteger $ a + b
+add (SInteger a)              (SReal b)                 = SReal $ fromInteger a + b
+add (SInteger a)              (SRational b)             = SRational $ fromInteger a + b
 add a@(SInteger _)            (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
 add a@(SReal _)               b@(SInteger _)            = add b a
-add (SReal a)                 (SReal b)                 = SReal (a + b)
-add (SReal a)                 (SRational bNumer bDenom) = SReal (a + fromInteger bNumer / fromInteger bDenom)
+add (SReal a)                 (SReal b)                 = SReal $ a + b
+add (SReal a)                 (SRational b)             = SReal $ a + fromRational b
 add a@(SReal _)               (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
-add a@(SRational _ _)         b@(SInteger _)            = add b a
-add a@(SRational _ _)         b@(SReal _)               = add b a
-add (SRational an ad)         (SRational  bn bd)        = _addRationals an ad bn bd
-add a@(SRational _ _)         (SComplex bReal bImag)    = SComplex (add a bReal) bImag
+add a@(SRational _ )          b@(SInteger _)            = add b a
+add a@(SRational _)           b@(SReal _)               = add b a
+add (SRational a)             (SRational  b)            = SRational $ a + b
+add a@(SRational _ )          (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
 add a@(SComplex _ _)          b@(SInteger _)            = add b a
 add a@(SComplex _ _)          b@(SReal _)               = add b a
-add a@(SComplex _ _)          b@(SRational _ _)         = add b a
+add a@(SComplex _ _)          b@(SRational _ )          = add b a
 add (SComplex aReal aImag)    (SComplex bReal bImag)    = SComplex (add aReal bReal) (add aImag bImag)
-
-_addRationals
-  :: Integer -> Integer -- a
-  -> Integer -> Integer -- b
-  -> SchemeNumber       -- res
-_addRationals aNumer aDenom bNumer bDenom =
-  let numer = aNumer * bDenom + bNumer * aDenom
-      denom = aDenom * bDenom
-  in SRational numer denom
 
 -----------------------------------------
 multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
 -----------------------------------------
 
-multiply (SInteger a)              (SInteger b)              = SInteger (a * b)
-multiply (SInteger a)              (SReal b)                 = SReal (fromInteger a * b)
-multiply (SInteger a)              (SRational bNumer bDenom) = SRational (a * bNumer) bDenom
+multiply (SInteger a)              (SInteger b)              = SInteger $ a * b
+multiply (SInteger a)              (SReal b)                 = SReal $ fromInteger a * b
+multiply (SInteger a)              (SRational b)             = SRational $ fromInteger a * b
 multiply a@(SInteger _)            (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
 
 multiply a@(SReal _)               b@(SInteger _)            = multiply b a
-multiply (SReal a)                 (SReal b)                 = SReal (a * b)
-multiply (SReal a)                 (SRational bNumer bDenom) = SReal (a * (fromInteger bNumer / fromInteger bDenom))
+multiply (SReal a)                 (SReal b)                 = SReal $ a * b
+multiply (SReal a)                 (SRational b)             = SReal $ a * fromRational b
 multiply a@(SReal _)               (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
 
-multiply a@(SRational _ _)         b@(SInteger _)            = multiply b a
-multiply a@(SRational _ _)         b@(SReal _)               = multiply b a
-multiply (SRational aNumer aDenom) (SRational bNumer bDenom) = SRational (aNumer * bNumer) (aDenom * bDenom)
-multiply a@(SRational _ _)         (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
+multiply a@(SRational _)           b@(SInteger _)            = multiply b a
+multiply a@(SRational _)           b@(SReal _)               = multiply b a
+multiply (SRational a)             (SRational b)             = SRational $ a * b
+multiply a@(SRational _)           (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
 
 multiply a@(SComplex _ _)          b@(SInteger _)            = add b a
 multiply a@(SComplex _ _)          b@(SReal _)               = add b a
-multiply a@(SComplex _ _)          b@(SRational _ _)         = add b a
+multiply a@(SComplex _ _)          b@(SRational _)           = add b a
 multiply (SComplex ar ai)          (SComplex br bi)          = _multiplyComplexes ar ai br bi
 
 _multiplyComplexes
@@ -319,9 +311,9 @@ subtract_ a b = let negativeB = multiply (SInteger (-1)) b
 divide :: SchemeNumber -> SchemeNumber -> SchemeNumber
 -----------------------------------------
 
-divide (SInteger a)       (SInteger b)              = SRational a b
+divide (SInteger a)       (SInteger b)              = SRational $ a % b
 divide (SInteger a)       (SReal b)                 = SReal (fromInteger a / b)
-divide a@(SInteger _)     (SRational bNumer bDenom) = multiply a (SRational bDenom bNumer)
+divide a@(SInteger _)     b@(SRational _)           = multiply a b
 divide (SInteger a)       (SComplex bReal bImag)    = _divideByComplex a bReal bImag
 divide a                  b                         = multiply a (divide (SInteger 1) b)
 
@@ -337,7 +329,7 @@ _divideByComplex a bReal bImag =
     toFloat :: SchemeNumber -> Float
     toFloat (SInteger val)             = fromInteger val
     toFloat (SReal val)                = val
-    toFloat (SRational numer denom)    = fromInteger numer / fromInteger denom
+    toFloat (SRational val)            = fromRational val
     toFloat (SComplex _ _)             = error $ "internal error: nested complex number. "
                                                  ++ "this expression should not have parsed."
 
@@ -384,8 +376,8 @@ isRational (SReal _ ) = False
 isRational val        = isReal val
 
 isInteger :: SchemeNumber -> Bool
-isInteger (SRational _ _) = False
-isInteger val            = isRational val
+isInteger (SRational _) = False
+isInteger val           = isRational val
 
 
 -----------------------------------------
@@ -454,7 +446,7 @@ eqv [a, b] = return $ SBool $ case (a, b) of
  (SNumber a',    SNumber b')    ->
    case (a', b') of
      (SInteger a'',  SInteger b'')  -> a'' == b''
-     (SRational _ _, SRational _ _) -> error "not implemented" -- TODO: use the std lib's Ratio
+     (SRational a'', SRational b'') -> a'' == b''
      (SReal a'',     SReal b'')     -> a'' == b''
      (SComplex _ _, SComplex _ _)   -> error "not implemented" -- TODO: use the std lib's Complex
      (_, _)                         -> False
