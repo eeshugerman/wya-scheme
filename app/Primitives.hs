@@ -101,14 +101,14 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
     writeString :: [SchemeVal] -> IOSchemeValOrError
     writeString = _outputPortProc $ \handle val -> case val of
       SString string ->
-        liftIO $ IO.hPutStr handle string
-        >> return (SList [])
+        liftIO $ IO.hPutStr handle string >>
+        return (SList [])
       nonString -> throwError $ TypeMismatch "string" nonString
 
     write :: [SchemeVal] -> IOSchemeValOrError
     write = _outputPortProc $ \handle val ->
-        liftIO $ IO.hPutStr handle (show val)
-        >> return (SList [])
+        liftIO $ IO.hPutStr handle (show val) >>
+        return (SList [])
 
 
 primitives :: [(String, SchemeVal)]
@@ -121,17 +121,17 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   -- , ("quotient",  numericFoldableOp quot)
   -- , ("remainder", numericFoldableOp rem)
 
-  , ("symbol?",      isSymbol)
-  , ("boolean?",     isBoolean)
-  , ("character?",   isCharacter)
-  , ("string?",      isString)
-  , ("number?",      isNumTypeOp _isNumber)
-  , ("complex?",     isNumTypeOp _isComplex)
-  , ("real?",        isNumTypeOp _isReal)
-  , ("rational?",    isNumTypeOp _isRational)
-  , ("integer?",     isNumTypeOp _isInteger)
-  , ("list?",        isList)
-  , ("vector?",      isVector)
+  , ("symbol?",      isTypeOp isSymbol)
+  , ("boolean?",     isTypeOp isBoolean)
+  , ("character?",   isTypeOp isCharacter)
+  , ("string?",      isTypeOp isString)
+  , ("list?",        isTypeOp isList)
+  , ("vector?",      isTypeOp isVector)
+  , ("number?",      isNumTypeOp isNumber)
+  , ("complex?",     isNumTypeOp isComplex)
+  , ("real?",        isNumTypeOp isReal)
+  , ("rational?",    isNumTypeOp isRational)
+  , ("integer?",     isNumTypeOp isInteger)
 
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
@@ -225,6 +225,22 @@ strBoolBinOp = boolBinOp unpackString
     unpackString (SString val) = return val
     unpackString nonString = throwError $ TypeMismatch "string" nonString
 
+isTypeOp
+  :: (SchemeVal -> Bool)
+  -> ([SchemeVal] -> SchemeValOrError)
+isTypeOp test = \case
+  [arg] -> return $ SBool $ test arg
+  args  -> throwError $ NumArgs 1 args
+
+-- can this be implemented as a wrapper around isTypeOp?
+isNumTypeOp
+  :: (SchemeNumber -> Bool)
+  -> ([SchemeVal] -> SchemeValOrError)
+isNumTypeOp test = \case
+  [SNumber num] -> return $ SBool $ test num
+  [_]           -> return $ SBool False
+  args          -> throwError $ NumArgs 1 args
+
 
 -----------------------------------
 add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
@@ -242,7 +258,7 @@ add a@(SReal _)               (SComplex bReal bImag)    = SComplex (add a bReal)
 
 add a@(SRational _ _)         b@(SInteger _)            = add b a
 add a@(SRational _ _)         b@(SReal _)               = add b a
-add (SRational an ad)         (SRational  bn bd)        = addRationals an ad bn bd
+add (SRational an ad)         (SRational  bn bd)        = _addRationals an ad bn bd
 add a@(SRational _ _)         (SComplex bReal bImag)    = SComplex (add a bReal) bImag
 
 add a@(SComplex _ _)          b@(SInteger _)            = add b a
@@ -250,11 +266,11 @@ add a@(SComplex _ _)          b@(SReal _)               = add b a
 add a@(SComplex _ _)          b@(SRational _ _)         = add b a
 add (SComplex aReal aImag)    (SComplex bReal bImag)    = SComplex (add aReal bReal) (add aImag bImag)
 
-addRationals
+_addRationals
   :: Integer -> Integer -- a
   -> Integer -> Integer -- b
-  -> SchemeNumber         -- res
-addRationals aNumer aDenom bNumer bDenom =
+  -> SchemeNumber       -- res
+_addRationals aNumer aDenom bNumer bDenom =
   let numer = aNumer * bDenom + bNumer * aDenom
       denom = aDenom * bDenom
   in SRational numer denom
@@ -281,13 +297,13 @@ multiply a@(SRational _ _)         (SComplex bReal bImag)    = SComplex (multipl
 multiply a@(SComplex _ _)          b@(SInteger _)            = add b a
 multiply a@(SComplex _ _)          b@(SReal _)               = add b a
 multiply a@(SComplex _ _)          b@(SRational _ _)         = add b a
-multiply (SComplex ar ai)          (SComplex br bi)          = multiplyComplexes ar ai br bi
+multiply (SComplex ar ai)          (SComplex br bi)          = _multiplyComplexes ar ai br bi
 
-multiplyComplexes
+_multiplyComplexes
   :: SchemeNumber -> SchemeNumber  -- a
   -> SchemeNumber -> SchemeNumber  -- b
   -> SchemeNumber                -- res
-multiplyComplexes aReal aImag bReal bImag =
+_multiplyComplexes aReal aImag bReal bImag =
   let real = add (multiply aReal bImag) (multiply bImag aReal)
       imag = subtract_ (multiply aReal bReal) (multiply aImag bImag)
   in SComplex real imag
@@ -306,11 +322,11 @@ divide :: SchemeNumber -> SchemeNumber -> SchemeNumber
 divide (SInteger a)       (SInteger b)              = SRational a b
 divide (SInteger a)       (SReal b)                 = SReal (fromInteger a / b)
 divide a@(SInteger _)     (SRational bNumer bDenom) = multiply a (SRational bDenom bNumer)
-divide (SInteger a)       (SComplex bReal bImag)    = divideByComplex a bReal bImag
+divide (SInteger a)       (SComplex bReal bImag)    = _divideByComplex a bReal bImag
 divide a                  b                         = multiply a (divide (SInteger 1) b)
 
-divideByComplex :: Integer -> SchemeNumber -> SchemeNumber -> SchemeNumber
-divideByComplex a bReal bImag =
+_divideByComplex :: Integer -> SchemeNumber -> SchemeNumber -> SchemeNumber
+_divideByComplex a bReal bImag =
   let aRealFloat = fromInteger a
       aImagFloat = 0.0
       bRealFloat = toFloat bReal
@@ -329,65 +345,48 @@ divideByComplex a bReal bImag =
 -- type testing
 -----------------------------------------
 
-isSymbol :: [SchemeVal] -> SchemeValOrError
-isSymbol [SSymbol _]  = return $ SBool True
-isSymbol [_]          = return $ SBool False
-isSymbol args         = throwError $ NumArgs 1 args
+isSymbol :: SchemeVal -> Bool
+isSymbol (SSymbol _) = True
+isSymbol _           = False
 
-isBoolean :: [SchemeVal] -> SchemeValOrError
-isBoolean [SBool _]   = return $ SBool True
-isBoolean [_]         = return $ SBool False
-isBoolean args        = throwError $ NumArgs 1 args
+isBoolean :: SchemeVal -> Bool
+isBoolean (SBool _) = True
+isBoolean _         = False
 
-isCharacter :: [SchemeVal] -> SchemeValOrError
-isCharacter [SChar _] = return $ SBool True
-isCharacter [_]       = return $ SBool False
-isCharacter args      = throwError $ NumArgs 1 args
+isCharacter :: SchemeVal -> Bool
+isCharacter (SChar _) = True
+isCharacter _         = False
 
-isString :: [SchemeVal] -> SchemeValOrError
-isString [SString _]  = return $ SBool True
-isString [_]          = return $ SBool False
-isString args         = throwError $ NumArgs 1 args
+isString :: SchemeVal -> Bool
+isString (SString _) = True
+isString _           = False
 
-isList :: [SchemeVal] -> SchemeValOrError
-isList [SList _]      = return $ SBool True
-isList [_]            = return $ SBool False
-isList args           = throwError $ NumArgs 1 args
+isList :: SchemeVal -> Bool
+isList (SList _) = True
+isList _         = False
 
-isVector :: [SchemeVal] -> SchemeValOrError
-isVector [SVector _]  = return $ SBool True
-isVector [_]          = return $ SBool False
-isVector args         = throwError $ NumArgs 1 args
+isVector :: SchemeVal -> Bool
+isVector (SVector _) = True
+isVector _           = False
 
--- num type stuff
-_isNumber :: SchemeNumber -> Bool
-_isNumber = const True
+isNumber :: SchemeNumber -> Bool
+isNumber = const True
 
-_isComplex :: SchemeNumber -> Bool
-_isComplex = const True
+isComplex :: SchemeNumber -> Bool
+isComplex = const True
 
-_isReal :: SchemeNumber -> Bool
-_isReal = \case
-  SComplex _ _ -> False
-  val          -> _isComplex val
+isReal :: SchemeNumber -> Bool
+isReal (SComplex _ _) = False
+isReal val            = isComplex val
 
-_isRational :: SchemeNumber -> Bool
-_isRational = \case
-  SReal _  -> False
-  val      -> _isReal val
+isRational :: SchemeNumber -> Bool
+isRational (SReal _ ) = False
+isRational val        = isReal val
 
-_isInteger :: SchemeNumber -> Bool
-_isInteger = \case
-  SRational _ _ -> False
-  val           -> _isRational val
+isInteger :: SchemeNumber -> Bool
+isInteger (SRational _ _) = False
+isInteger val            = isRational val
 
-isNumTypeOp
-  :: (SchemeNumber -> Bool)
-  -> ([SchemeVal] -> SchemeValOrError)
-isNumTypeOp test = \case
-  [SNumber num] -> return $ SBool $ test num
-  [_]           -> return $ SBool False
-  args          -> throwError $ NumArgs 1 args
 
 -----------------------------------------
 -- type conversion
@@ -464,15 +463,15 @@ eqv args              = throwError $ NumArgs 2 args
 
 
 -- TODO: this is gross
-isTrue :: SchemeVal -> Bool
-isTrue (SBool val) = val
-isTrue _ = False
+_isTrue :: SchemeVal -> Bool
+_isTrue (SBool val) = val
+_isTrue _ = False
 
 
 equalLists :: [SchemeVal] -> [SchemeVal] -> SchemeValOrError
 equalLists a b =
     let allTrue :: [SchemeVal] -> SchemeVal
-        allTrue = SBool . all isTrue
+        allTrue = SBool . all _isTrue
         lispBools = zipWithM (\ a' b' -> equal [a', b']) a b
     in fmap allTrue lispBools
 
@@ -486,7 +485,7 @@ equal [a, b] = case (a, b) of
   (SDottedList aBleep aBloop, SDottedList bBleep bBloop) -> do
     bleepsEqual <- equalLists aBleep bBleep
     bloopsEqual <- equal [aBloop, bBloop]
-    return $ SBool $ isTrue bleepsEqual && isTrue bloopsEqual
+    return $ SBool $ _isTrue bleepsEqual && _isTrue bloopsEqual
 
   (_, _) -> eqv [a, b]
 

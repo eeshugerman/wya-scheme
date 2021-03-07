@@ -104,9 +104,9 @@ apply SProc {..} args = let
        paramsArgsMap = zip procParams args ++ case procVarParam of
          Just varParamName -> [(varParamName, SList remainingArgs)]
          Nothing           -> []
-     in do
-       procEnv <- liftIO $ extendWith paramsArgsMap procClosure
-       last $ map (eval procEnv) procBody
+       in do
+         procEnv <- liftIO $ extendWith paramsArgsMap procClosure
+         last $ map (eval procEnv) procBody
 
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
