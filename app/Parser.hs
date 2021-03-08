@@ -5,17 +5,19 @@ import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ( (<|>) )
 import Data.Char ( toLower )
 import Data.Array ( listArray )
+import Data.Complex (Complex((:+)))
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  ( SchemeNumber(..)
+  ( ComplexComponent(..)
+  , SchemeNumber(..)
   , SchemeVal(..), SchemeError (ParseError), SchemeValOrError
   )
 import Control.Monad.Except (throwError)
 import Data.Ratio ((%))
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
--- TODO: use `SchemeError`, not `error`
+-- TODO: use `unexpected` and/or `<?>`, not `error`
 
 data Sign = Plus | Minus
 data Radix = Binary | Octal | Decimal | Hex
@@ -155,7 +157,16 @@ parseComplex = P.try $ do
   real <- P.try parseReal <|> P.try parseRational <|> parseInteger
   imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
   P.char 'i'
-  return $ SComplex real imag
+  real' <- toComplexComponent real
+  imag' <- toComplexComponent imag
+  return $ SComplex $ real' :+ imag'
+ where
+  toComplexComponent :: SchemeNumber -> P.Parser ComplexComponent
+  toComplexComponent = \case
+    SInteger val  -> return $ CCInteger val
+    SRational val -> return $ CCRational val
+    SReal val     -> return $ CCReal val
+    SComplex _    -> P.unexpected "nested complex number"
 
 parseNumber :: P.Parser SchemeVal
 parseNumber = fmap

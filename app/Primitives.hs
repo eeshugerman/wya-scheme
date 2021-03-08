@@ -17,7 +17,7 @@ import Types
   , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
-  , SchemeValOrError
+  , SchemeValOrError, ComplexComponent
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
@@ -200,16 +200,15 @@ type BoolBinOpBuilder a
   -> [SchemeVal]
   -> SchemeValOrError
 
-numBoolBinOp :: BoolBinOpBuilder Float
-numBoolBinOp = boolBinOp unpackNum
+numEqBoolBinOp :: BoolBinOpBuilder (Complex ComplexComponent)
+numEqBoolBinOp = boolBinOp unpackNum
   where
-    unpackNum :: SchemeVal -> Either SchemeError Float
+    unpackNum :: SchemeVal -> Either SchemeError (Complex ComplexComponent)
     unpackNum (SNumber num) = case num of
-      SInteger val          -> return $ fromInteger val
-      SRational val         -> return $ fromRational val
-      SReal val             -> return val
-      SComplex _ _          -> throwError $
-        Default "operation not implemented for complex numbers" -- TODO
+      SInteger val          -> return $ CCInteger val :+ CCInteger 0
+      SRational val         -> return $ CCRational val :+ CCInteger 0
+      SReal val             -> return $ CCReal val :+ CCInteger 0
+      SComplex val          -> return val
     unpackNum nonNum = throwError $ TypeMismatch "number" nonNum
 
 boolBoolBinOp :: BoolBinOpBuilder Bool

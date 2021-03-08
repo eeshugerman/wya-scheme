@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Types
-  ( SchemeNumber (..)
+  ( ComplexComponent (..)
+  , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
   , SchemeValOrError
@@ -15,39 +16,45 @@ import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
 import Data.Ratio (numerator, denominator)
+import Data.Complex (Complex, Complex((:+)))
 
 unwordsList :: [SchemeVal] -> String
-unwordsList = unwords . map showSchemeVal
+unwordsList = unwords . map show
+
+showRational :: Rational -> String
+showRational val = show (numerator val) ++ "/" ++ show (denominator val)
+
+data ComplexComponent
+  = CCReal Float
+  | CCRational Rational
+  | CCInteger Integer
+  deriving Eq
+
+
+showComplexComponent :: Bool -> ComplexComponent -> String
+showComplexComponent withPlusSign comp = case comp of
+  CCInteger val  -> maybePlusSign val ++ show val
+  CCRational val -> maybePlusSign val ++ showRational val
+  CCReal val     -> maybePlusSign val ++ show val
+  where
+    maybePlusSign :: (Num a, Ord a) => a -> String
+    maybePlusSign val = if withPlusSign && (val >= 0) then "+" else ""
+
 
 data SchemeNumber
-  = SComplex SchemeNumber SchemeNumber  -- TODO: use Data.Complex.Complex
+  = SComplex (Complex ComplexComponent)
   | SReal Float
   | SRational Rational
   | SInteger Integer
   deriving Eq
 
-instance Show SchemeNumber where show = showSchemeNumber
-
-showSchemeNumber :: SchemeNumber -> String
-showSchemeNumber = \case
-  SInteger val          -> show val
-  SRational val -> show (numerator val) ++ "/" ++ show (denominator val)
-  SReal val             -> show val
-  SComplex real imag    -> showComplex real imag
-  where
-    showComplex :: SchemeNumber -> SchemeNumber -> String
-    showComplex real imag = show real ++ showWithSign imag ++ "i"
-
-    showWithSign :: SchemeNumber -> String
-    showWithSign = \case
-      SInteger val            -> maybePlusStr val ++ show val
-      SReal val               -> maybePlusStr val ++ show val
-      val@(SRational val')    -> maybePlusStr (numerator val') ++ showSchemeNumber val
-      SComplex _ _            -> error "internal error: `imag` is a complex number. "
-                                    ++ "this expression should not have parsed."
-
-    maybePlusStr :: (Num a, Ord a) => a -> String
-    maybePlusStr val = if val > 0 then "+" else ""
+instance Show SchemeNumber where
+  show = \case
+    SInteger val            -> show val
+    SRational val           -> showRational val
+    SReal val               -> show val
+    SComplex (real :+ imag) -> showComplexComponent False real ++
+                               showComplexComponent True imag ++ "i"
 
 data SchemeVal
   = SSymbol String
@@ -68,28 +75,26 @@ data SchemeVal
     , procClosure   :: Env
     }
 
-instance Show SchemeVal where show = showSchemeVal
-
-showSchemeVal :: SchemeVal -> String
-showSchemeVal = \case
-  SSymbol val           -> val
-  SBool True            -> "#t"
-  SBool False           -> "#f"
-  SChar val             -> "#\\" ++ [val] -- TODO: named chars
-  SString val           -> "\"" ++ val ++ "\""
-  SNumber val           -> show val
-  SList val             -> "(" ++ unwordsList val ++ ")"
-  SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
-  SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
-  SPort _               -> "<IO port>"
-  SPrimativeProc _      -> "<primitive>"
-  SIOProc _             -> "<IO primitive>"
-  SProc {procParams=params, procVarParam=varParam} ->
-    "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
-    where
-      showVarArgs = case varParam of
-        Nothing -> ""
-        Just val  -> ". " ++ val
+instance Show SchemeVal where
+  show = \case
+    SSymbol val           -> val
+    SBool True            -> "#t"
+    SBool False           -> "#f"
+    SChar val             -> "#\\" ++ [val] -- TODO: named chars
+    SString val           -> "\"" ++ val ++ "\""
+    SNumber val           -> show val
+    SList val             -> "(" ++ unwordsList val ++ ")"
+    SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
+    SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
+    SPort _               -> "<IO port>"
+    SPrimativeProc _      -> "<primitive>"
+    SIOProc _             -> "<IO primitive>"
+    SProc {procParams=params, procVarParam=varParam} ->
+      "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
+      where
+        showVarArgs = case varParam of
+          Nothing -> ""
+          Just val  -> ". " ++ val
 
 
 data SchemeError
@@ -98,20 +103,25 @@ data SchemeError
   | ParseError ParseError
   | BadForm String SchemeVal
   | UnboundVar String
+  -- | InternalError String
   | Default String
 
-instance Show SchemeError where show = showSchemeError
-
-showSchemeError :: SchemeError -> String
-showSchemeError = \case
-  UnboundVar varname           -> "Unbound variable: " ++ varname
-  BadForm msg form             -> msg ++ ": " ++ show form
-  NumArgs expected found       -> "Expected " ++ show expected
-                                  ++ " args; found values " ++ unwordsList found
-  TypeMismatch expected found  -> "Invalid type: expected " ++ expected
-                                  ++ ", found " ++ show found
-  ParseError err               -> "Parse error at " ++ show err
-  Default msg                  -> "Error: " ++ msg
+instance Show SchemeError where
+  show = \case
+    UnboundVar varname ->
+      "Unbound variable: " ++ varname
+    BadForm msg form ->
+      msg ++ ": " ++ show form
+    NumArgs expected found ->
+      "Expected " ++ show expected ++ " args; found values " ++ unwordsList found
+    TypeMismatch expected found ->
+      "Invalid type: expected " ++ expected ++ ", found " ++ show found
+    ParseError err ->
+      "Parse error at " ++ show err
+    -- InternalError msg ->
+    --   "Internal error (read: wtf this shouldn't be possible): " ++ show msg
+    Default msg ->
+      "Error: " ++ msg
 
 
 
