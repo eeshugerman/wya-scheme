@@ -28,17 +28,21 @@ data ComplexComponent
   = CCReal Float
   | CCRational Rational
   | CCInteger Integer
-  deriving Eq
 
+instance Eq ComplexComponent where
+  (==) a b = case (a, b) of
+    (CCReal a', CCReal b')     -> a' == b'
+    (CCReal a', CCRational b') -> a' == fromRational b'
+    (CCReal a', CCInteger b')  -> a' == fromInteger b'
 
-showComplexComponent :: Bool -> ComplexComponent -> String
-showComplexComponent withPlusSign comp = case comp of
-  CCInteger val  -> maybePlusSign val ++ show val
-  CCRational val -> maybePlusSign val ++ showRational val
-  CCReal val     -> maybePlusSign val ++ show val
-  where
-    maybePlusSign :: (Num a, Ord a) => a -> String
-    maybePlusSign val = if withPlusSign && (val >= 0) then "+" else ""
+    (CCRational _,  CCReal _)      -> b == a
+    (CCRational a', CCRational b') -> a' == b'
+    (CCRational a', CCInteger b')  -> a' == fromInteger b'
+
+    (CCInteger _,  CCReal _)     -> b == a
+    (CCInteger _,  CCRational _) -> b == a
+    (CCInteger a', CCInteger b') -> a' == b'
+
 
 
 data SchemeNumber
@@ -46,7 +50,6 @@ data SchemeNumber
   | SReal Float
   | SRational Rational
   | SInteger Integer
-  deriving Eq
 
 instance Show SchemeNumber where
   show = \case
@@ -55,6 +58,37 @@ instance Show SchemeNumber where
     SReal val               -> show val
     SComplex (real :+ imag) -> showComplexComponent False real ++
                                showComplexComponent True imag ++ "i"
+    where
+      showComplexComponent withPlusSign = \case
+        CCInteger val  -> maybePlusSign val ++ show val
+        CCRational val -> maybePlusSign val ++ showRational val
+        CCReal val     -> maybePlusSign val ++ show val
+        where
+          maybePlusSign val =
+            if withPlusSign && (val >= 0)
+            then "+"
+            else ""
+
+instance Eq SchemeNumber where
+  (==) a b = case (a, b) of
+    (SComplex a', SComplex b')   -> a' == b'
+    (SComplex a', SInteger b')   -> a' == CCInteger b' :+ CCInteger 0
+    (SComplex a', SRational b')  -> a' == CCRational b' :+ CCInteger 0
+    (SComplex a', SReal b')      -> a' == CCReal b' :+ CCInteger 0
+    (_,           SComplex _)    -> b == a
+
+    (SReal a', SReal b')         -> a' == b'
+    (SReal a', SRational b')     -> a' == fromRational b'
+    (SReal a', SInteger b')      -> a' == fromInteger b'
+
+    (SRational _,  SReal _)      -> b == a
+    (SRational a', SRational b') -> a' == b'
+    (SRational a', SInteger b')  -> a' == fromInteger b'
+
+    (SInteger _,  SReal _)       -> b == a
+    (SInteger _,  SRational _)   -> b == a
+    (SInteger a', SInteger b')   -> a' == b'
+
 
 data SchemeVal
   = SSymbol String

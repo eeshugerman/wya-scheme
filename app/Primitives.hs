@@ -2,7 +2,6 @@
 module Primitives ( primitives ,ioPrimitives) where
 
 
-import Data.Complex (Complex((:+)), realPart, imagPart)
 import Control.Monad (zipWithM)
 import qualified Data.Bifunctor
 import qualified System.IO as IO
@@ -17,7 +16,7 @@ import Types
   , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
-  , SchemeValOrError, ComplexComponent
+  , SchemeValOrError, ComplexComponent (CCInteger)
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
@@ -138,9 +137,9 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("string->symbol", stringToSymbol)
 
   , ("=",           numBoolBinOp (==))
+  , ("/=",          numBoolBinOp (/=))
   , ("<",           numBoolBinOp (<))
   , (">",           numBoolBinOp (>))
-  , ("/=",          numBoolBinOp (/=))
   , (">=",          numBoolBinOp (>=))
   , ("<=",          numBoolBinOp (<=))
   , ("and",         boolBoolBinOp (&&))
@@ -191,39 +190,43 @@ boolBinOp
 boolBinOp unpacker op args =
   if length args /= 2
   then throwError $ NumArgs 2 args
-  else do left <- unpacker $ head args
-          right <- unpacker $ args !! 1
-          return $ SBool $ left `op` right
+  else do
+    left <- unpacker $ head args
+    right <- unpacker $ args !! 1
+    return $ SBool $ left `op` right
 
-type BoolBinOpBuilder a
-  = (a -> a -> Bool)
-  -> [SchemeVal]
-  -> SchemeValOrError
+type BoolBinOpBuilder a =
+  (a -> a -> Bool) -> ([SchemeVal] -> SchemeValOrError)
 
-numEqBoolBinOp :: BoolBinOpBuilder (Complex ComplexComponent)
-numEqBoolBinOp = boolBinOp unpackNum
+numEqBoolBinOp :: BoolBinOpBuilder SchemeNumber
+numEqBoolBinOp = boolBinOp unpacker
   where
-    unpackNum :: SchemeVal -> Either SchemeError (Complex ComplexComponent)
-    unpackNum (SNumber num) = case num of
-      SInteger val          -> return $ CCInteger val :+ CCInteger 0
-      SRational val         -> return $ CCRational val :+ CCInteger 0
-      SReal val             -> return $ CCReal val :+ CCInteger 0
-      SComplex val          -> return val
-    unpackNum nonNum = throwError $ TypeMismatch "number" nonNum
+    unpacker :: SchemeVal -> Either SchemeError SchemeNumber
+    unpacker (SNumber val) = return val
+    unpacker nonNum = throwError $ TypeMismatch "number" nonNum
+
+numOrdBoolBinOp :: BoolBinOpBuilder Float
+numOrdBoolBinOp  = boolBinOp unpacker
+  where
+    unpacker :: SchemeVal -> Either SchemeError Float
+    unpacker (SNumber (SReal val))      = return val
+    unpacker (SNumber (SRational val))  = return $ fromRational val
+    unpacker (SNumber (SInteger val))   = return $ fromInteger val
+    unpacker val                        = throwError $ TypeMismatch "real" val
 
 boolBoolBinOp :: BoolBinOpBuilder Bool
-boolBoolBinOp = boolBinOp unpackBool
+boolBoolBinOp = boolBinOp unpacker
   where
-    unpackBool :: SchemeVal -> Either SchemeError Bool
-    unpackBool (SBool val) = return val
-    unpackBool nonBool = throwError $ TypeMismatch "boolean" nonBool
+    unpacker :: SchemeVal -> Either SchemeError Bool
+    unpacker (SBool val) = return val
+    unpacker nonBool = throwError $ TypeMismatch "boolean" nonBool
 
 strBoolBinOp :: BoolBinOpBuilder String
-strBoolBinOp = boolBinOp unpackString
+strBoolBinOp = boolBinOp unpacker
   where
-    unpackString :: SchemeVal -> Either SchemeError String
-    unpackString (SString val) = return val
-    unpackString nonString = throwError $ TypeMismatch "string" nonString
+    unpacker :: SchemeVal -> Either SchemeError String
+    unpacker (SString val) = return val
+    unpacker nonString = throwError $ TypeMismatch "string" nonString
 
 isTypeOp
   :: (SchemeVal -> Bool)
@@ -249,22 +252,22 @@ add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
 add (SInteger a)              (SInteger b)              = SInteger $ a + b
 add (SInteger a)              (SReal b)                 = SReal $ fromInteger a + b
 add (SInteger a)              (SRational b)             = SRational $ fromInteger a + b
-add a@(SInteger _)            (SComplex bReal bImag)    = SComplex (add a bReal) bImag
+add (SInteger a)              (SComplex b)              = SComplex $ intToCC a + b
 
 add a@(SReal _)               b@(SInteger _)            = add b a
 add (SReal a)                 (SReal b)                 = SReal $ a + b
 add (SReal a)                 (SRational b)             = SReal $ a + fromRational b
-add a@(SReal _)               (SComplex bReal bImag)    = SComplex (add a bReal) bImag
+add (SReal a)                 (SComplex b)              = SComplex $ fromReal a + b
 
 add a@(SRational _ )          b@(SInteger _)            = add b a
 add a@(SRational _)           b@(SReal _)               = add b a
 add (SRational a)             (SRational  b)            = SRational $ a + b
-add a@(SRational _ )          (SComplex bReal bImag)    = SComplex (add a bReal) bImag
+add (SRational a)             (SComplex b)              = SComplex $ fromRational a + b
 
-add a@(SComplex _ _)          b@(SInteger _)            = add b a
-add a@(SComplex _ _)          b@(SReal _)               = add b a
-add a@(SComplex _ _)          b@(SRational _ )          = add b a
-add (SComplex aReal aImag)    (SComplex bReal bImag)    = SComplex (add aReal bReal) (add aImag bImag)
+add a@(SComplex _)            b@(SInteger _)            = add b a
+add a@(SComplex _)            b@(SReal _)               = add b a
+add a@(SComplex _)            b@(SRational _ )          = add b a
+add (SComplex a)              (SComplex b)            = SComplex $ a + b
 
 -----------------------------------------
 multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
@@ -273,31 +276,22 @@ multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
 multiply (SInteger a)              (SInteger b)              = SInteger $ a * b
 multiply (SInteger a)              (SReal b)                 = SReal $ fromInteger a * b
 multiply (SInteger a)              (SRational b)             = SRational $ fromInteger a * b
-multiply a@(SInteger _)            (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
+multiply (SInteger a)              (SComplex b)              = SComplex $ fromInteger a * b
 
 multiply a@(SReal _)               b@(SInteger _)            = multiply b a
 multiply (SReal a)                 (SReal b)                 = SReal $ a * b
 multiply (SReal a)                 (SRational b)             = SReal $ a * fromRational b
-multiply a@(SReal _)               (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
+multiply (SReal a)                 (SComplex b)              = SComplex $ fromReal a * b
 
 multiply a@(SRational _)           b@(SInteger _)            = multiply b a
 multiply a@(SRational _)           b@(SReal _)               = multiply b a
 multiply (SRational a)             (SRational b)             = SRational $ a * b
-multiply a@(SRational _)           (SComplex bReal bImag)    = SComplex (multiply a bReal) (multiply a bImag)
+multiply (SRational a)             (SComplex b)              = SComplex $ fromRational a * b
 
-multiply a@(SComplex _ _)          b@(SInteger _)            = add b a
-multiply a@(SComplex _ _)          b@(SReal _)               = add b a
-multiply a@(SComplex _ _)          b@(SRational _)           = add b a
-multiply (SComplex ar ai)          (SComplex br bi)          = _multiplyComplexes ar ai br bi
-
-_multiplyComplexes
-  :: SchemeNumber -> SchemeNumber  -- a
-  -> SchemeNumber -> SchemeNumber  -- b
-  -> SchemeNumber                -- res
-_multiplyComplexes aReal aImag bReal bImag =
-  let real = add (multiply aReal bImag) (multiply bImag aReal)
-      imag = subtract_ (multiply aReal bReal) (multiply aImag bImag)
-  in SComplex real imag
+multiply a@(SComplex _)            b@(SInteger _)            = add b a
+multiply a@(SComplex _)            b@(SReal _)               = add b a
+multiply a@(SComplex _)            b@(SRational _)           = add b a
+multiply (SComplex a)              (SComplex b)              = SComplex $ a * b
 
 -----------------------------------------
 subtract_ :: SchemeNumber -> SchemeNumber -> SchemeNumber
@@ -313,24 +307,8 @@ divide :: SchemeNumber -> SchemeNumber -> SchemeNumber
 divide (SInteger a)       (SInteger b)              = SRational $ a % b
 divide (SInteger a)       (SReal b)                 = SReal (fromInteger a / b)
 divide a@(SInteger _)     b@(SRational _)           = multiply a b
-divide (SInteger a)       (SComplex bReal bImag)    = _divideByComplex a bReal bImag
+divide (SInteger a)       (SComplex b)              = SComplex $ fromInteger a / b
 divide a                  b                         = multiply a (divide (SInteger 1) b)
-
-_divideByComplex :: Integer -> SchemeNumber -> SchemeNumber -> SchemeNumber
-_divideByComplex a bReal bImag =
-  let aRealFloat = fromInteger a
-      aImagFloat = 0.0
-      bRealFloat = toFloat bReal
-      bImagFloat = toFloat bImag
-      res = (aRealFloat :+ aImagFloat) / (bRealFloat :+ bImagFloat)
-  in SComplex (SReal $ realPart res) (SReal $ imagPart res)
-  where
-    toFloat :: SchemeNumber -> Float
-    toFloat (SInteger val)             = fromInteger val
-    toFloat (SReal val)                = val
-    toFloat (SRational val)            = fromRational val
-    toFloat (SComplex _ _)             = error $ "internal error: nested complex number. "
-                                                 ++ "this expression should not have parsed."
 
 -----------------------------------------
 -- type testing
@@ -367,7 +345,7 @@ isComplex :: SchemeNumber -> Bool
 isComplex = const True
 
 isReal :: SchemeNumber -> Bool
-isReal (SComplex _ _) = False
+isReal (SComplex _)   = False
 isReal val            = isComplex val
 
 isRational :: SchemeNumber -> Bool
@@ -447,7 +425,7 @@ eqv [a, b] = return $ SBool $ case (a, b) of
      (SInteger a'',  SInteger b'')  -> a'' == b''
      (SRational a'', SRational b'') -> a'' == b''
      (SReal a'',     SReal b'')     -> a'' == b''
-     (SComplex _ _, SComplex _ _)   -> error "not implemented" -- TODO: use the std lib's Complex
+     (SComplex a'', SComplex b'')   -> a'' == b''
      (_, _)                         -> False
  (_, _)                             -> error "not implemented" -- TODO: iterables
 eqv args              = throwError $ NumArgs 2 args
