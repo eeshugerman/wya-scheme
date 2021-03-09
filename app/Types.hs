@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE LambdaCase #-}
 module Types
   ( ComplexComponent (..)
@@ -44,25 +45,40 @@ instance Eq ComplexComponent where
     (CCInteger a', CCInteger b') -> a' == b'
 
 
-
-data SchemeNumber
-  = SComplex (Complex ComplexComponent)
-  | SReal Float
+data SchemeReal
+  = SReal Float
   | SRational Rational
   | SInteger Integer
 
+data SchemeNumber
+  = NonComplex SchemeReal
+  | Complex (Complex SchemeReal)
+
+pattern SComplex' :: Complex SchemeReal -> SchemeNumber
+pattern SComplex' val <- Complex val
+
+pattern SReal' :: Float -> SchemeNumber
+pattern SReal' val <- NonComplex (SReal val)
+
+pattern SRational' :: Rational -> SchemeNumber
+pattern SRational' val <- NonComplex (SRational val)
+
+pattern SInteger' :: Integer -> SchemeNumber
+pattern SInteger' val <- NonComplex (SInteger val)
+
+
 instance Show SchemeNumber where
   show = \case
-    SInteger val            -> show val
-    SRational val           -> showRational val
-    SReal val               -> show val
-    SComplex (real :+ imag) -> showComplexComponent False real ++
-                               showComplexComponent True imag ++ "i"
+    SInteger' val            -> show val
+    SRational' val           -> showRational val
+    SReal' val               -> show val
+    SComplex' (real :+ imag) -> showComplexComponent False real ++
+                                showComplexComponent True imag ++ "i"
     where
       showComplexComponent withPlusSign = \case
-        CCInteger val  -> maybePlusSign val ++ show val
-        CCRational val -> maybePlusSign val ++ showRational val
-        CCReal val     -> maybePlusSign val ++ show val
+        SInteger val  -> maybePlusSign val ++ show val
+        SRational val -> maybePlusSign val ++ showRational val
+        SReal val     -> maybePlusSign val ++ show val
         where
           maybePlusSign val =
             if withPlusSign && (val >= 0)
@@ -71,11 +87,11 @@ instance Show SchemeNumber where
 
 instance Eq SchemeNumber where
   (==) a b = case (a, b) of
-    (SComplex a', SComplex b')   -> a' == b'
-    (SComplex a', SInteger b')   -> a' == CCInteger b' :+ CCInteger 0
-    (SComplex a', SRational b')  -> a' == CCRational b' :+ CCInteger 0
-    (SComplex a', SReal b')      -> a' == CCReal b' :+ CCInteger 0
-    (_,           SComplex _)    -> b == a
+    (SComplex' a', SComplex' b')   -> a' == b'
+    (SComplex' a', SInteger' b')   -> a' == CCInteger b' :+ CCInteger 0
+    (SComplex' a', SRational' b')  -> a' == CCRational b' :+ CCInteger 0
+    (SComplex' a', SReal' b')      -> a' == CCReal b' :+ CCInteger 0
+    (_,           SComplex' _)    -> b == a
 
     (SReal a', SReal b')         -> a' == b'
     (SReal a', SRational b')     -> a' == fromRational b'
