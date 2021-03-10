@@ -4,12 +4,12 @@ module Parser where
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ( (<|>) )
 import Data.Char ( toLower )
+import Data.Complex (Complex((:+)))
 import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
   ( SchemeReal(..)
-  , SchemeComplex
   , SchemeNumber(..)
   , SchemeVal(..)
   , SchemeError (ParseError)
@@ -159,12 +159,12 @@ parseComplex = P.try $ do
   real <- component
   imag <- component
   P.char 'i'
-  return $ SComplex' real imag
+  return $ SComplex (real :+ imag)
 
 parseNumber :: P.Parser SchemeVal
 parseNumber =
   let wrap = fmap Real'
-  in fmap SNumber $ P.choice
+  in SNumber <$> P.choice
      [ wrap parseReal
      , wrap parseRational
      , parseComplex

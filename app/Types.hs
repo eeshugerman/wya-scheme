@@ -9,7 +9,6 @@ module Types
     , SRational
     , SReal
     , SComplex
-    , SComplex'
     )
   , SchemeVal (..)
   , SchemeError (..)
@@ -31,21 +30,21 @@ unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map show
 
 -- naming convention: `Foo'` is a real constructor, `Foo` is a pattern synonym
--- exception: `SComplex'`
 
 data SchemeReal
   = SReal' Float
   | SRational' Rational
   | SInteger' Integer
 
+
+-- use newtype + GeneralizedNewTypeDeriving?
 type SchemeComplex = Complex SchemeReal
+  -- deriving Num
+
 
 data SchemeNumber
   = Real' SchemeReal
   | Complex' SchemeComplex
-
-pattern SComplex' :: SchemeReal -> SchemeReal -> SchemeNumber
-pattern SComplex' real imag = Complex' (real :+ imag)
 
 pattern SComplex :: SchemeComplex -> SchemeNumber
 pattern SComplex val = Complex' val
@@ -60,7 +59,6 @@ pattern SInteger :: Integer -> SchemeNumber
 pattern SInteger val = Real' (SInteger' val)
 
 {-# COMPLETE SComplex, SReal, SRational, SInteger #-}
-{-# COMPLETE SComplex', SReal, SRational, SInteger #-}
 
 instance Show SchemeReal where
   show = \case
@@ -73,30 +71,19 @@ instance Show SchemeReal where
             denom = show $ denominator val
         in numer ++ "/" ++ denom
 
-instance Show SchemeNumber where
-  show = \case
-    SInteger val        -> show val
-    SRational val       -> show val
-    SReal val           -> show val
-    SComplex' real imag -> showComplex real imag
-    where
-      showComplex real imag =
-        let maybePlus = if imag > SInteger' 0 then "+" else ""
-        in show real ++ maybePlus ++ show imag ++ "i"
-
 instance Eq SchemeReal where
   (==) a b = case (a, b) of
-    (SReal' a', SReal' b')         -> a' == b'
-    (SReal' a', SRational' b')     -> a' == fromRational b'
-    (SReal' a', SInteger' b')      -> a' == fromInteger b'
+    (SReal' a',     SReal' b')     -> a' == b'
+    (SReal' a',     SRational' b') -> a' == fromRational b'
+    (SReal' a',     SInteger' b')  -> a' == fromInteger b'
 
-    (SRational' a',  SReal' b')    -> fromRational a' == b'
+    (SRational' a', SReal' b')     -> fromRational a' == b'
     (SRational' a', SRational' b') -> a' == b'
     (SRational' a', SInteger' b')  -> a' == fromInteger b'
 
     (SInteger' a',  SReal' b')     -> fromInteger a' == b'
     (SInteger' a',  SRational' b') -> fromInteger a' == b'
-    (SInteger' a', SInteger' b')   -> a' == b'
+    (SInteger' a',  SInteger' b')  -> a' == b'
 
 instance Ord SchemeReal where
   compare a b = case (a, b) of
@@ -112,6 +99,65 @@ instance Ord SchemeReal where
     (SInteger' a', SRational' b')  -> compare (fromInteger a') b'
     (SInteger' a', SInteger' b')   -> compare a' b'
 
+instance Num SchemeReal where
+  (+) a b = case (a, b) of
+    (SReal' a', SReal' b')         -> SReal' $ a' + b'
+    (SReal' a', SRational' b')     -> SReal' $ a' + fromRational b'
+    (SReal' a', SInteger' b')      -> SReal' $ a' + fromInteger b'
+
+    (SRational' a', SReal' b')     -> SReal' $ fromRational a' + b'
+    (SRational' a', SRational' b') -> SRational' $ a' + b'
+    (SRational' a', SInteger' b')  -> SRational' $ a' + fromInteger b'
+
+    (SInteger' a', SReal' b')      -> SReal' $ fromInteger a' + b'
+    (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' + b'
+    (SInteger' a', SInteger' b')   -> SInteger' $ a' + b'
+
+  -- can * and + be deduped somehow? exactly the same except
+  -- for the operator...
+  (*) a b = case (a, b) of
+    (SReal' a', SReal' b')         -> SReal' $ a' * b'
+    (SReal' a', SRational' b')     -> SReal' $ a' * fromRational b'
+    (SReal' a', SInteger' b')      -> SReal' $ a' * fromInteger b'
+
+    (SRational' a', SReal' b')     -> SReal' $ fromRational a' * b'
+    (SRational' a', SRational' b') -> SRational' $ a' * b'
+    (SRational' a', SInteger' b')  -> SRational' $ a' * fromInteger b'
+
+    (SInteger' a', SReal' b')      -> SReal' $ fromInteger a' * b'
+    (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' * b'
+    (SInteger' a', SInteger' b')   -> SInteger' $ a' * b'
+
+  -- again: can these be deduped?
+  abs = \case
+    SReal' val'     -> SReal' $ abs val'
+    SRational' val' -> SRational' $ abs val'
+    SInteger' val'  -> SInteger' $ abs val'
+
+  signum = \case
+    SReal' val'     -> SReal' $ signum val'
+    SRational' val' -> SRational' $ signum val'
+    SInteger' val'  -> SInteger' $ signum val'
+
+  negate = \case
+    SReal' val'     -> SReal' $ negate val'
+    SRational' val' -> SRational' $ negate val'
+    SInteger' val'  -> SInteger' $ negate val'
+
+  fromInteger = SInteger'
+
+
+instance Show SchemeNumber where
+  show = \case
+    SInteger val           -> show val
+    SRational val          -> show val
+    SReal val              -> show val
+    SComplex (real:+ imag) -> showComplex real imag
+    where
+      showComplex real imag =
+        let maybePlus = if imag > SInteger' 0 then "+" else ""
+        in show real ++ maybePlus ++ show imag ++ "i"
+
 
 instance Eq SchemeNumber where
   (==) a b = case (a, b) of
@@ -124,6 +170,15 @@ instance Eq SchemeNumber where
       toComplex :: SchemeReal -> SchemeComplex
       toComplex val = val :+ SInteger' 0
 
+
+-- need SchemeComplex implementation first
+-- instance Num SchemeNumber where
+  -- (+) = _
+  -- (*) = _
+  -- abs = _
+  -- signum = _
+  -- fromInteger = _
+  -- negate = _
 
 
 
