@@ -16,7 +16,7 @@ import Types
   , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
-  , SchemeValOrError, ComplexComponent (CCInteger)
+  , SchemeValOrError
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
@@ -136,12 +136,12 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
 
-  , ("=",           numBoolBinOp (==))
-  , ("/=",          numBoolBinOp (/=))
-  , ("<",           numBoolBinOp (<))
-  , (">",           numBoolBinOp (>))
-  , (">=",          numBoolBinOp (>=))
-  , ("<=",          numBoolBinOp (<=))
+  -- , ("=",           numBoolBinOp (==))
+  -- , ("/=",          numBoolBinOp (/=))
+  -- , ("<",           numBoolBinOp (<))
+  -- , (">",           numBoolBinOp (>))
+  -- , (">=",          numBoolBinOp (>=))
+  -- , ("<=",          numBoolBinOp (<=))
   , ("and",         boolBoolBinOp (&&))
   , ("or",          boolBoolBinOp (||))
   , ("string=?",    strBoolBinOp (==))
@@ -252,22 +252,22 @@ add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
 add (SInteger a)              (SInteger b)              = SInteger $ a + b
 add (SInteger a)              (SReal b)                 = SReal $ fromInteger a + b
 add (SInteger a)              (SRational b)             = SRational $ fromInteger a + b
-add (SInteger a)              (SComplex b)              = SComplex $ intToCC a + b
+-- add (SInteger a)              (SComplex b)              = SComplex $ intToCC a + b
 
 add a@(SReal _)               b@(SInteger _)            = add b a
 add (SReal a)                 (SReal b)                 = SReal $ a + b
 add (SReal a)                 (SRational b)             = SReal $ a + fromRational b
-add (SReal a)                 (SComplex b)              = SComplex $ fromReal a + b
+-- add (SReal a)                 (SComplex b)              = SComplex $ fromReal a + b
 
 add a@(SRational _ )          b@(SInteger _)            = add b a
 add a@(SRational _)           b@(SReal _)               = add b a
 add (SRational a)             (SRational  b)            = SRational $ a + b
-add (SRational a)             (SComplex b)              = SComplex $ fromRational a + b
+-- add (SRational a)             (SComplex b)              = SComplex $ fromRational a + b
 
 add a@(SComplex _)            b@(SInteger _)            = add b a
 add a@(SComplex _)            b@(SReal _)               = add b a
 add a@(SComplex _)            b@(SRational _ )          = add b a
-add (SComplex a)              (SComplex b)            = SComplex $ a + b
+-- add (SComplex a)              (SComplex b)            = SComplex $ a + b
 
 -----------------------------------------
 multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
@@ -276,22 +276,22 @@ multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
 multiply (SInteger a)              (SInteger b)              = SInteger $ a * b
 multiply (SInteger a)              (SReal b)                 = SReal $ fromInteger a * b
 multiply (SInteger a)              (SRational b)             = SRational $ fromInteger a * b
-multiply (SInteger a)              (SComplex b)              = SComplex $ fromInteger a * b
+-- multiply (SInteger a)              (SComplex b)              = SComplex $ fromInteger a * b
 
 multiply a@(SReal _)               b@(SInteger _)            = multiply b a
 multiply (SReal a)                 (SReal b)                 = SReal $ a * b
 multiply (SReal a)                 (SRational b)             = SReal $ a * fromRational b
-multiply (SReal a)                 (SComplex b)              = SComplex $ fromReal a * b
+-- multiply (SReal a)                 (SComplex b)              = SComplex $ fromReal a * b
 
 multiply a@(SRational _)           b@(SInteger _)            = multiply b a
 multiply a@(SRational _)           b@(SReal _)               = multiply b a
 multiply (SRational a)             (SRational b)             = SRational $ a * b
-multiply (SRational a)             (SComplex b)              = SComplex $ fromRational a * b
+-- multiply (SRational a)             (SComplex b)              = SComplex $ fromRational a * b
 
 multiply a@(SComplex _)            b@(SInteger _)            = add b a
 multiply a@(SComplex _)            b@(SReal _)               = add b a
 multiply a@(SComplex _)            b@(SRational _)           = add b a
-multiply (SComplex a)              (SComplex b)              = SComplex $ a * b
+-- multiply (SComplex a)              (SComplex b)              = SComplex $ a * b
 
 -----------------------------------------
 subtract_ :: SchemeNumber -> SchemeNumber -> SchemeNumber
@@ -307,7 +307,7 @@ divide :: SchemeNumber -> SchemeNumber -> SchemeNumber
 divide (SInteger a)       (SInteger b)              = SRational $ a % b
 divide (SInteger a)       (SReal b)                 = SReal (fromInteger a / b)
 divide a@(SInteger _)     b@(SRational _)           = multiply a b
-divide (SInteger a)       (SComplex b)              = SComplex $ fromInteger a / b
+-- divide (SInteger a)       (SComplex b)              = SComplex $ fromInteger a / b
 divide a                  b                         = multiply a (divide (SInteger 1) b)
 
 -----------------------------------------

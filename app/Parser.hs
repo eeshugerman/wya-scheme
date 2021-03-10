@@ -5,13 +5,15 @@ import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ( (<|>) )
 import Data.Char ( toLower )
 import Data.Array ( listArray )
-import Data.Complex (Complex((:+)))
 import Numeric ( readFloat, readHex, readOct )
 
 import Types
-  ( ComplexComponent(..)
+  ( SchemeReal(..)
+  , SchemeComplex
   , SchemeNumber(..)
-  , SchemeVal(..), SchemeError (ParseError), SchemeValOrError
+  , SchemeVal(..)
+  , SchemeError (ParseError)
+  , SchemeValOrError
   )
 import Control.Monad.Except (throwError)
 import Data.Ratio ((%))
@@ -90,12 +92,12 @@ parseSign = do
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
 
-parseInteger :: P.Parser SchemeNumber
+parseInteger :: P.Parser SchemeReal
 parseInteger = P.try $ do
   radix <- P.option Decimal parseRadix
   sign <- parseSign
   digits <- P.many1 $ allowedDigits radix
-  return . SInteger . applySign sign $ readInt radix digits
+  return . SInteger' . applySign sign $ readInt radix digits
   where
     readInt :: Radix -> String -> Integer
     readInt = \case
@@ -129,17 +131,17 @@ parseInteger = P.try $ do
       Hex ->     P.oneOf "0123456789abcdefABCDEF"
 
 
-parseRational :: P.Parser SchemeNumber
+parseRational :: P.Parser SchemeReal
 parseRational = P.try $ do
   sign <- parseSign
   numerator <- P.many1 P.digit
   P.char '/'
   denominator <- P.many1 P.digit
-  return $ SRational $ applySign sign (read numerator) % read denominator
+  return $ SRational' $ applySign sign (read numerator) % read denominator
 
 
 -- TODO: #e / #i
-parseReal :: P.Parser SchemeNumber
+parseReal :: P.Parser SchemeReal
 parseReal = P.try $ do
   sign <- parseSign
   whole <- P.many P.digit
@@ -149,29 +151,26 @@ parseReal = P.try $ do
     then P.pzero   -- do a fail
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
-         in return $ SReal $ applySign sign mag
-
+         in return $ SReal' $ applySign sign mag
 
 parseComplex :: P.Parser SchemeNumber
 parseComplex = P.try $ do
-  real <- P.try parseReal <|> P.try parseRational <|> parseInteger
-  imag <- P.try parseReal <|> P.try parseRational <|> parseInteger
+  let component = P.try parseReal <|> P.try parseRational <|> parseInteger
+  real <- component
+  imag <- component
   P.char 'i'
-  real' <- toComplexComponent real
-  imag' <- toComplexComponent imag
-  return $ SComplex $ real' :+ imag'
- where
-  toComplexComponent :: SchemeNumber -> P.Parser ComplexComponent
-  toComplexComponent = \case
-    SInteger val  -> return $ CCInteger val
-    SRational val -> return $ CCRational val
-    SReal val     -> return $ CCReal val
-    SComplex _    -> P.unexpected "nested complex number"
+  return $ SComplex' real imag
 
 parseNumber :: P.Parser SchemeVal
-parseNumber = fmap
-  SNumber
-  (parseReal <|> parseRational <|> parseComplex <|> parseInteger)
+parseNumber =
+  let wrap = fmap Real'
+  in fmap SNumber $ P.choice
+     [ wrap parseReal
+     , wrap parseRational
+     , parseComplex
+     , wrap parseInteger
+     ]
+
 
 parseSchemeVals :: P.Parser [SchemeVal]
 -- endBy is like sepBy except if there's seperator at the end it will be consumed

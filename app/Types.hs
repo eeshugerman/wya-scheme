@@ -1,8 +1,16 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE LambdaCase #-}
 module Types
-  ( ComplexComponent (..)
-  , SchemeNumber (..)
+  ( SchemeReal(..)
+  , SchemeComplex
+  , SchemeNumber
+    ( ..
+    , SInteger
+    , SRational
+    , SReal
+    , SComplex
+    , SComplex'
+    )
   , SchemeVal (..)
   , SchemeError (..)
   , SchemeValOrError
@@ -22,88 +30,101 @@ import Data.Complex (Complex, Complex((:+)))
 unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map show
 
-showRational :: Rational -> String
-showRational val = show (numerator val) ++ "/" ++ show (denominator val)
-
-data ComplexComponent
-  = CCReal Float
-  | CCRational Rational
-  | CCInteger Integer
-
-instance Eq ComplexComponent where
-  (==) a b = case (a, b) of
-    (CCReal a', CCReal b')     -> a' == b'
-    (CCReal a', CCRational b') -> a' == fromRational b'
-    (CCReal a', CCInteger b')  -> a' == fromInteger b'
-
-    (CCRational _,  CCReal _)      -> b == a
-    (CCRational a', CCRational b') -> a' == b'
-    (CCRational a', CCInteger b')  -> a' == fromInteger b'
-
-    (CCInteger _,  CCReal _)     -> b == a
-    (CCInteger _,  CCRational _) -> b == a
-    (CCInteger a', CCInteger b') -> a' == b'
-
+-- naming convention: `Foo'` is a real constructor, `Foo` is a pattern synonym
+-- exception: `SComplex'`
 
 data SchemeReal
-  = SReal Float
-  | SRational Rational
-  | SInteger Integer
+  = SReal' Float
+  | SRational' Rational
+  | SInteger' Integer
+
+type SchemeComplex = Complex SchemeReal
 
 data SchemeNumber
-  = NonComplex SchemeReal
-  | Complex (Complex SchemeReal)
+  = Real' SchemeReal
+  | Complex' SchemeComplex
 
-pattern SComplex' :: Complex SchemeReal -> SchemeNumber
-pattern SComplex' val <- Complex val
+pattern SComplex' :: SchemeReal -> SchemeReal -> SchemeNumber
+pattern SComplex' real imag = Complex' (real :+ imag)
 
-pattern SReal' :: Float -> SchemeNumber
-pattern SReal' val <- NonComplex (SReal val)
+pattern SComplex :: SchemeComplex -> SchemeNumber
+pattern SComplex val = Complex' val
 
-pattern SRational' :: Rational -> SchemeNumber
-pattern SRational' val <- NonComplex (SRational val)
+pattern SReal :: Float -> SchemeNumber
+pattern SReal val = Real' (SReal' val)
 
-pattern SInteger' :: Integer -> SchemeNumber
-pattern SInteger' val <- NonComplex (SInteger val)
+pattern SRational :: Rational -> SchemeNumber
+pattern SRational val = Real' (SRational' val)
 
+pattern SInteger :: Integer -> SchemeNumber
+pattern SInteger val = Real' (SInteger' val)
 
-instance Show SchemeNumber where
+{-# COMPLETE SComplex, SReal, SRational, SInteger #-}
+{-# COMPLETE SComplex', SReal, SRational, SInteger #-}
+
+instance Show SchemeReal where
   show = \case
     SInteger' val            -> show val
     SRational' val           -> showRational val
     SReal' val               -> show val
-    SComplex' (real :+ imag) -> showComplexComponent False real ++
-                                showComplexComponent True imag ++ "i"
     where
-      showComplexComponent withPlusSign = \case
-        SInteger val  -> maybePlusSign val ++ show val
-        SRational val -> maybePlusSign val ++ showRational val
-        SReal val     -> maybePlusSign val ++ show val
-        where
-          maybePlusSign val =
-            if withPlusSign && (val >= 0)
-            then "+"
-            else ""
+      showRational val =
+        let numer = show $ numerator val
+            denom = show $ denominator val
+        in numer ++ "/" ++ denom
+
+instance Show SchemeNumber where
+  show = \case
+    SInteger val        -> show val
+    SRational val       -> show val
+    SReal val           -> show val
+    SComplex' real imag -> showComplex real imag
+    where
+      showComplex real imag =
+        let maybePlus = if imag > SInteger' 0 then "+" else ""
+        in show real ++ maybePlus ++ show imag ++ "i"
+
+instance Eq SchemeReal where
+  (==) a b = case (a, b) of
+    (SReal' a', SReal' b')         -> a' == b'
+    (SReal' a', SRational' b')     -> a' == fromRational b'
+    (SReal' a', SInteger' b')      -> a' == fromInteger b'
+
+    (SRational' a',  SReal' b')    -> fromRational a' == b'
+    (SRational' a', SRational' b') -> a' == b'
+    (SRational' a', SInteger' b')  -> a' == fromInteger b'
+
+    (SInteger' a',  SReal' b')     -> fromInteger a' == b'
+    (SInteger' a',  SRational' b') -> fromInteger a' == b'
+    (SInteger' a', SInteger' b')   -> a' == b'
+
+instance Ord SchemeReal where
+  compare a b = case (a, b) of
+    (SReal' a', SReal' b')         -> compare a' b'
+    (SReal' a', SRational' b')     -> compare a' (fromRational b')
+    (SReal' a', SInteger' b')      -> compare a' (fromInteger b')
+
+    (SRational' a', SReal' b')     -> compare (fromRational a') b'
+    (SRational' a', SRational' b') -> compare a' b'
+    (SRational' a', SInteger' b')  -> compare a' (fromInteger b')
+
+    (SInteger' a', SReal' b')      -> compare (fromInteger a') b'
+    (SInteger' a', SRational' b')  -> compare (fromInteger a') b'
+    (SInteger' a', SInteger' b')   -> compare a' b'
+
 
 instance Eq SchemeNumber where
   (==) a b = case (a, b) of
-    (SComplex' a', SComplex' b')   -> a' == b'
-    (SComplex' a', SInteger' b')   -> a' == CCInteger b' :+ CCInteger 0
-    (SComplex' a', SRational' b')  -> a' == CCRational b' :+ CCInteger 0
-    (SComplex' a', SReal' b')      -> a' == CCReal b' :+ CCInteger 0
-    (_,           SComplex' _)    -> b == a
+    (Complex' a', Complex' b')  -> a' == b'
+    (Complex' a', Real' b')     -> a' == toComplex b'
+    (Real' a',    Complex' b')  -> toComplex a' == b'
+    (Real' a',    Real' b')     -> a' == b'
 
-    (SReal a', SReal b')         -> a' == b'
-    (SReal a', SRational b')     -> a' == fromRational b'
-    (SReal a', SInteger b')      -> a' == fromInteger b'
+    where
+      toComplex :: SchemeReal -> SchemeComplex
+      toComplex val = val :+ SInteger' 0
 
-    (SRational _,  SReal _)      -> b == a
-    (SRational a', SRational b') -> a' == b'
-    (SRational a', SInteger b')  -> a' == fromInteger b'
 
-    (SInteger _,  SReal _)       -> b == a
-    (SInteger _,  SRational _)   -> b == a
-    (SInteger a', SInteger b')   -> a' == b'
 
 
 data SchemeVal
