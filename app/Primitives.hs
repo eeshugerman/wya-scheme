@@ -425,9 +425,9 @@ eqv [a, b] = return $ SBool $ case (a, b) of
      (SInteger a'',  SInteger b'')  -> a'' == b''
      (SRational a'', SRational b'') -> a'' == b''
      (SReal a'',     SReal b'')     -> a'' == b''
-     (SComplex a'', SComplex b'')   -> a'' == b''
+     (SComplex a'',  SComplex b'')  -> a'' == b''
      (_, _)                         -> False
- (_, _)                             -> error "not implemented" -- TODO: iterables
+ (_, _)                         -> error "not implemented" -- TODO: iterables
 eqv args              = throwError $ NumArgs 2 args
 
 

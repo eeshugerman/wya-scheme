@@ -23,13 +23,19 @@ import qualified Data.Array as A
 import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
-import Data.Ratio (numerator, denominator)
+import Data.Ratio (numerator, denominator, (%))
 import Data.Complex (Complex, Complex((:+)))
 
 unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map show
 
--- naming convention: `Foo'` is a real constructor, `Foo` is a pattern synonym
+{- naming convention:
+     SchemeFoo | a type
+     SFoo'     | a real constructor
+     SFoo      | pattern synonym
+     Foo'      | a real constructor that we try to forget about
+-}
+
 
 data SchemeReal
   = SReal' Float
@@ -37,17 +43,16 @@ data SchemeReal
   | SInteger' Integer
 
 
--- use newtype + GeneralizedNewTypeDeriving?
-type SchemeComplex = Complex SchemeReal
-  -- deriving Num
+newtype SchemeComplex = SComplex' (Complex SchemeReal)
+  deriving Eq
 
 
 data SchemeNumber
   = Real' SchemeReal
   | Complex' SchemeComplex
 
-pattern SComplex :: SchemeComplex -> SchemeNumber
-pattern SComplex val = Complex' val
+pattern SComplex :: Complex SchemeReal -> SchemeNumber
+pattern SComplex val = Complex' (SComplex' val)
 
 pattern SReal :: Float -> SchemeNumber
 pattern SReal val = Real' (SReal' val)
@@ -62,14 +67,12 @@ pattern SInteger val = Real' (SInteger' val)
 
 instance Show SchemeReal where
   show = \case
-    SInteger' val            -> show val
-    SRational' val           -> showRational val
-    SReal' val               -> show val
-    where
-      showRational val =
-        let numer = show $ numerator val
-            denom = show $ denominator val
-        in numer ++ "/" ++ denom
+    SInteger'  val -> show val
+    SReal'     val -> show val
+    SRational' val ->
+      let numer = show $ numerator val
+          denom = show $ denominator val
+      in numer ++ "/" ++ denom
 
 instance Eq SchemeReal where
   (==) a b = case (a, b) of
@@ -146,18 +149,62 @@ instance Num SchemeReal where
 
   fromInteger = SInteger'
 
+instance Fractional SchemeReal where
+  fromRational val = SRational' val
+  recip = \case
+    SReal' val -> SReal' $ 1/val
+    SRational' val -> SRational' $ 1/val
+    SInteger' val -> SRational' $ 1%val
+
+
+instance Show SchemeComplex where
+  show (SComplex' (real :+ imag)) =
+    let maybePlus = if imag > SInteger' 0 then "+" else ""
+    in show real ++ maybePlus ++ show imag ++ "i"
+
+toFloat :: SchemeReal -> Float
+toFloat = \case
+  SInteger' val -> fromInteger val
+  SReal' val -> val
+  SRational' val -> fromRational  val
+
+complexMag :: SchemeReal -> SchemeReal -> SchemeReal
+complexMag real imag =
+  let realF = toFloat real
+      imagF = toFloat imag
+  in SReal' $ sqrt $ realF ** 2 + imagF ** 2
+
+-- alternatively, could implement RealFloat SchemeReal
+instance Num SchemeComplex where
+  (+) (SComplex' (aReal :+ aImag)) (SComplex' (bReal :+ bImag)) =
+    let real = aReal + bReal
+        imag = aImag + bImag
+    in SComplex' $ real :+ imag
+
+  (*) (SComplex' (aReal :+ aImag)) (SComplex' (bReal :+ bImag)) =
+    let real = (aReal * bImag) + (bImag * aReal)
+        imag = (aReal * bReal) - (aImag * bImag)
+    in SComplex' $ real :+ imag
+
+  abs (SComplex' (real :+ imag)) =
+    SComplex' $ complexMag real imag :+ SReal' 0
+
+  signum (SComplex' (real :+ imag)) =
+    let mag = complexMag real imag
+    in SComplex' $ real/mag :+ imag/mag
+
+  fromInteger val = SComplex' $ SInteger' val :+ SInteger' 0
+
+  negate (SComplex' (real :+ imag)) =
+    SComplex' $ negate real :+ negate imag
+
+toComplex :: SchemeReal -> SchemeComplex
+toComplex val = SComplex' $ val :+ SInteger' 0
 
 instance Show SchemeNumber where
   show = \case
-    SInteger val           -> show val
-    SRational val          -> show val
-    SReal val              -> show val
-    SComplex (real:+ imag) -> showComplex real imag
-    where
-      showComplex real imag =
-        let maybePlus = if imag > SInteger' 0 then "+" else ""
-        in show real ++ maybePlus ++ show imag ++ "i"
-
+    Real' val -> show val
+    Complex' val -> show val
 
 instance Eq SchemeNumber where
   (==) a b = case (a, b) of
@@ -166,19 +213,34 @@ instance Eq SchemeNumber where
     (Real' a',    Complex' b')  -> toComplex a' == b'
     (Real' a',    Real' b')     -> a' == b'
 
-    where
-      toComplex :: SchemeReal -> SchemeComplex
-      toComplex val = val :+ SInteger' 0
-
 
 -- need SchemeComplex implementation first
--- instance Num SchemeNumber where
-  -- (+) = _
-  -- (*) = _
-  -- abs = _
-  -- signum = _
-  -- fromInteger = _
-  -- negate = _
+instance Num SchemeNumber where
+  (+) a b = case (a, b) of
+    (Complex' a', Complex' b')  -> Complex' $ a' + b'
+    (Complex' a', Real' b')     -> Complex' $ a' + toComplex b'
+    (Real' a',    Complex' b')  -> Complex' $ toComplex a' + b'
+    (Real' a',    Real' b')     -> Real' $ a' + b'
+
+  (*) a b = case (a, b) of
+    (Complex' a', Complex' b')  -> Complex' $ a' * b'
+    (Complex' a', Real' b')     -> Complex' $ a' * toComplex b'
+    (Real' a',    Complex' b')  -> Complex' $ toComplex a' * b'
+    (Real' a',    Real' b')     -> Real' $ a' * b'
+
+  abs = \case
+    Complex' val -> Complex' $ abs val
+    Real' val -> Real' $ abs val
+
+  signum = \case
+    Complex' val -> Complex' $ signum val
+    Real' val -> Real' $ signum val
+
+  negate = \case
+    Complex' val -> Complex' $ negate val
+    Real' val -> Real' $ negate val
+
+  fromInteger val = SInteger val
 
 
 
