@@ -177,9 +177,9 @@ numericFoldableOp op args           = foldl1M wrappedOp args
     foldlM f acc (x:xs) = f acc x >>= \ acc' -> foldlM f acc' xs
 
     wrappedOp :: SchemeVal -> SchemeVal -> SchemeValOrError
-    wrappedOp (SNumber a) (SNumber b) = return $ SNumber $ op a b
-    wrappedOp a           (SNumber _) = throwError $ TypeMismatch "number" a
-    wrappedOp (SNumber _) b           = throwError $ TypeMismatch "number" b
+    wrappedOp (SchemeNumber a) (SchemeNumber b) = return $ SchemeNumber $ op a b
+    wrappedOp a           (SchemeNumber _) = throwError $ TypeMismatch "number" a
+    wrappedOp (SchemeNumber _) b           = throwError $ TypeMismatch "number" b
     wrappedOp a           _           = throwError $ TypeMismatch "number" a
 
 boolBinOp
@@ -202,16 +202,16 @@ numEqBoolBinOp :: BoolBinOpBuilder SchemeNumber
 numEqBoolBinOp = boolBinOp unpacker
   where
     unpacker :: SchemeVal -> Either SchemeError SchemeNumber
-    unpacker (SNumber val) = return val
+    unpacker (SchemeNumber val) = return val
     unpacker nonNum = throwError $ TypeMismatch "number" nonNum
 
 numOrdBoolBinOp :: BoolBinOpBuilder Float
 numOrdBoolBinOp  = boolBinOp unpacker
   where
     unpacker :: SchemeVal -> Either SchemeError Float
-    unpacker (SNumber (SReal val))      = return val
-    unpacker (SNumber (SRational val))  = return $ fromRational val
-    unpacker (SNumber (SInteger val))   = return $ fromInteger val
+    unpacker (SchemeNumber (SReal val))      = return val
+    unpacker (SchemeNumber (SRational val))  = return $ fromRational val
+    unpacker (SchemeNumber (SInteger val))   = return $ fromInteger val
     unpacker val                        = throwError $ TypeMismatch "real" val
 
 boolBoolBinOp :: BoolBinOpBuilder Bool
@@ -240,7 +240,7 @@ isNumTypeOp
   :: (SchemeNumber -> Bool)
   -> ([SchemeVal] -> SchemeValOrError)
 isNumTypeOp test = \case
-  [SNumber num] -> return $ SBool $ test num
+  [SchemeNumber num] -> return $ SBool $ test num
   [_]           -> return $ SBool False
   args          -> throwError $ NumArgs 1 args
 
@@ -420,7 +420,7 @@ eqv [a, b] = return $ SBool $ case (a, b) of
  (SChar a', SChar b')           -> a' == b'
  (SString a',    SString b')    -> a' == b'
  (SBool a',      SBool b')      -> a' == b'
- (SNumber a',    SNumber b')    ->
+ (SchemeNumber a',    SchemeNumber b')    ->
    case (a', b') of
      (SInteger a'',  SInteger b'')  -> a'' == b''
      (SRational a'', SRational b'') -> a'' == b''

@@ -149,7 +149,7 @@ eval _   val@(SVector _)       = throwError $ BadForm "Can't eval vector" val
 eval _   val@(SBool _)         = return val
 eval _   val@(SChar _)         = return val
 eval _   val@(SString _)       = return val
-eval _   val@(SNumber _)       = return val
+eval _   val@(SchemeNumber _)       = return val
 
 eval env (SSymbol varName)     = getVar env varName
 

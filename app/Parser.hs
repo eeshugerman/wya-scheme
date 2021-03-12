@@ -162,14 +162,12 @@ parseComplex = P.try $ do
   return $ SComplex (real :+ imag)
 
 parseNumber :: P.Parser SchemeVal
-parseNumber =
-  let wrap = fmap Real'
-  in SNumber <$> P.choice
+parseNumber = SchemeNumber <$> P.choice
      [ wrap parseReal
      , wrap parseRational
      , parseComplex
      , wrap parseInteger
-     ]
+     ] where wrap = fmap SchemeReal
 
 
 parseSchemeVals :: P.Parser [SchemeVal]

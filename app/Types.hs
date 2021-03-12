@@ -30,10 +30,10 @@ unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map show
 
 {- naming convention:
-     SchemeFoo | a type
-     SFoo'     | a real constructor
-     SFoo      | pattern synonym
-     Foo'      | a real constructor that we try to forget about
+     SchemeFoo   | a type and its constructor
+     SchemeFoo'  | a constructor wrapping SchemeFoo
+     SFoo'       | a (most granular) constructor
+     SFoo        | pattern synonym for convenient access to SFoo'
 -}
 
 
@@ -48,20 +48,20 @@ newtype SchemeComplex = SComplex' (Complex SchemeReal)
 
 
 data SchemeNumber
-  = Real' SchemeReal
-  | Complex' SchemeComplex
+  = SchemeReal SchemeReal
+  | SchemeComplex SchemeComplex
 
 pattern SComplex :: Complex SchemeReal -> SchemeNumber
-pattern SComplex val = Complex' (SComplex' val)
+pattern SComplex val = SchemeComplex (SComplex' val)
 
 pattern SReal :: Float -> SchemeNumber
-pattern SReal val = Real' (SReal' val)
+pattern SReal val = SchemeReal (SReal' val)
 
 pattern SRational :: Rational -> SchemeNumber
-pattern SRational val = Real' (SRational' val)
+pattern SRational val = SchemeReal (SRational' val)
 
 pattern SInteger :: Integer -> SchemeNumber
-pattern SInteger val = Real' (SInteger' val)
+pattern SInteger val = SchemeReal (SInteger' val)
 
 {-# COMPLETE SComplex, SReal, SRational, SInteger #-}
 
@@ -203,42 +203,42 @@ toComplex val = SComplex' $ val :+ SInteger' 0
 
 instance Show SchemeNumber where
   show = \case
-    Real' val -> show val
-    Complex' val -> show val
+    SchemeReal val -> show val
+    SchemeComplex val -> show val
 
 instance Eq SchemeNumber where
   (==) a b = case (a, b) of
-    (Complex' a', Complex' b')  -> a' == b'
-    (Complex' a', Real' b')     -> a' == toComplex b'
-    (Real' a',    Complex' b')  -> toComplex a' == b'
-    (Real' a',    Real' b')     -> a' == b'
+    (SchemeComplex a', SchemeComplex b')  -> a' == b'
+    (SchemeComplex a', SchemeReal b')     -> a' == toComplex b'
+    (SchemeReal a',    SchemeComplex b')  -> toComplex a' == b'
+    (SchemeReal a',    SchemeReal b')     -> a' == b'
 
 
 -- need SchemeComplex implementation first
 instance Num SchemeNumber where
   (+) a b = case (a, b) of
-    (Complex' a', Complex' b')  -> Complex' $ a' + b'
-    (Complex' a', Real' b')     -> Complex' $ a' + toComplex b'
-    (Real' a',    Complex' b')  -> Complex' $ toComplex a' + b'
-    (Real' a',    Real' b')     -> Real' $ a' + b'
+    (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' + b'
+    (SchemeComplex a', SchemeReal b')     -> SchemeComplex $ a' + toComplex b'
+    (SchemeReal a',    SchemeComplex b')  -> SchemeComplex $ toComplex a' + b'
+    (SchemeReal a',    SchemeReal b')     -> SchemeReal $ a' + b'
 
   (*) a b = case (a, b) of
-    (Complex' a', Complex' b')  -> Complex' $ a' * b'
-    (Complex' a', Real' b')     -> Complex' $ a' * toComplex b'
-    (Real' a',    Complex' b')  -> Complex' $ toComplex a' * b'
-    (Real' a',    Real' b')     -> Real' $ a' * b'
+    (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' * b'
+    (SchemeComplex a', SchemeReal b')     -> SchemeComplex $ a' * toComplex b'
+    (SchemeReal a',    SchemeComplex b')  -> SchemeComplex $ toComplex a' * b'
+    (SchemeReal a',    SchemeReal b')     -> SchemeReal $ a' * b'
 
   abs = \case
-    Complex' val -> Complex' $ abs val
-    Real' val -> Real' $ abs val
+    SchemeComplex val -> SchemeComplex $ abs val
+    SchemeReal val -> SchemeReal $ abs val
 
   signum = \case
-    Complex' val -> Complex' $ signum val
-    Real' val -> Real' $ signum val
+    SchemeComplex val -> SchemeComplex $ signum val
+    SchemeReal val -> SchemeReal $ signum val
 
   negate = \case
-    Complex' val -> Complex' $ negate val
-    Real' val -> Real' $ negate val
+    SchemeComplex val -> SchemeComplex $ negate val
+    SchemeReal val -> SchemeReal $ negate val
 
   fromInteger val = SInteger val
 
@@ -249,7 +249,7 @@ data SchemeVal
   | SBool Bool
   | SChar Char
   | SString String
-  | SNumber SchemeNumber
+  | SchemeNumber SchemeNumber
   | SList [SchemeVal]
   | SVector (A.Array Int SchemeVal)
   | SDottedList [SchemeVal] SchemeVal
@@ -270,7 +270,7 @@ instance Show SchemeVal where
     SBool False           -> "#f"
     SChar val             -> "#\\" ++ [val] -- TODO: named chars
     SString val           -> "\"" ++ val ++ "\""
-    SNumber val           -> show val
+    SchemeNumber val           -> show val
     SList val             -> "(" ++ unwordsList val ++ ")"
     SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
     SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"
