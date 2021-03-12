@@ -24,7 +24,7 @@ import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
 import Data.Ratio (numerator, denominator, (%))
-import Data.Complex (Complex, Complex((:+)))
+import Data.Complex (Complex, Complex((:+)), conjugate, realPart, imagPart)
 
 unwordsList :: [SchemeVal] -> String
 unwordsList = unwords . map show
@@ -152,9 +152,9 @@ instance Num SchemeReal where
 instance Fractional SchemeReal where
   fromRational val = SRational' val
   recip = \case
-    SReal' val -> SReal' $ 1/val
-    SRational' val -> SRational' $ 1/val
-    SInteger' val -> SRational' $ 1%val
+    SReal' val -> SReal' $ 1 / val
+    SRational' val -> SRational' $ 1 / val
+    SInteger' val -> SRational' $ 1 % val
 
 
 instance Show SchemeComplex where
@@ -162,17 +162,20 @@ instance Show SchemeComplex where
     let maybePlus = if imag > SInteger' 0 then "+" else ""
     in show real ++ maybePlus ++ show imag ++ "i"
 
-toFloat :: SchemeReal -> Float
-toFloat = \case
-  SInteger' val -> fromInteger val
-  SReal' val -> val
-  SRational' val -> fromRational  val
 
 complexMag :: SchemeReal -> SchemeReal -> SchemeReal
 complexMag real imag =
-  let realF = toFloat real
+  let toFloat :: SchemeReal -> Float
+      toFloat = \case
+        SInteger' val -> fromInteger val
+        SReal' val -> val
+        SRational' val -> fromRational  val
+      realF = toFloat real
       imagF = toFloat imag
   in SReal' $ sqrt $ realF ** 2 + imagF ** 2
+
+toComplex :: SchemeReal -> SchemeComplex
+toComplex val = SComplex' $ val :+ SInteger' 0
 
 -- alternatively, could implement RealFloat SchemeReal
 instance Num SchemeComplex where
@@ -181,9 +184,10 @@ instance Num SchemeComplex where
         imag = aImag + bImag
     in SComplex' $ real :+ imag
 
+  -- TODO: bug
   (*) (SComplex' (aReal :+ aImag)) (SComplex' (bReal :+ bImag)) =
-    let real = (aReal * bImag) + (bImag * aReal)
-        imag = (aReal * bReal) - (aImag * bImag)
+    let real = aReal * bReal - aImag * bImag
+        imag = aReal * bImag + bImag * aReal
     in SComplex' $ real :+ imag
 
   abs (SComplex' (real :+ imag)) =
@@ -193,13 +197,18 @@ instance Num SchemeComplex where
     let mag = complexMag real imag
     in SComplex' $ real/mag :+ imag/mag
 
-  fromInteger val = SComplex' $ SInteger' val :+ SInteger' 0
+  fromInteger val = toComplex $ SInteger' val
 
   negate (SComplex' (real :+ imag)) =
     SComplex' $ negate real :+ negate imag
 
-toComplex :: SchemeReal -> SchemeComplex
-toComplex val = SComplex' $ val :+ SInteger' 0
+instance Fractional SchemeComplex where
+  fromRational val = toComplex $ SRational' val
+  recip (SComplex' val) =
+    let numerReal :+ numerImag = conjugate val
+        SComplex' (denom :+ _) = SComplex' val * SComplex' (conjugate val)
+    in SComplex' $ (numerReal / denom) :+ (numerImag / denom)
+
 
 instance Show SchemeNumber where
   show = \case
@@ -213,8 +222,6 @@ instance Eq SchemeNumber where
     (SchemeReal a',    SchemeComplex b')  -> toComplex a' == b'
     (SchemeReal a',    SchemeReal b')     -> a' == b'
 
-
--- need SchemeComplex implementation first
 instance Num SchemeNumber where
   (+) a b = case (a, b) of
     (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' + b'
@@ -242,6 +249,13 @@ instance Num SchemeNumber where
 
   fromInteger val = SInteger val
 
+
+instance Fractional SchemeNumber where
+  fromRational val = SRational val
+
+  recip = \case
+    SchemeReal val -> SchemeReal $ recip val
+    SchemeComplex val -> SchemeComplex $ recip val
 
 
 data SchemeVal

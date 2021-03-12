@@ -16,7 +16,7 @@ import Types
   , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
-  , SchemeValOrError
+  , SchemeValOrError, SchemeReal
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
@@ -113,13 +113,21 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
 
 primitives :: [(String, SchemeVal)]
 primitives = map (Data.Bifunctor.second SPrimativeProc)
-  [ ("+",         numericFoldableOp add)
-  , ("-",         numericFoldableOp subtract_)
-  , ("*",         numericFoldableOp multiply)
-  , ("/",         numericFoldableOp divide)
+  [ ("+",         numericFoldableOp (+))
+  , ("-",         numericFoldableOp (-))
+  , ("*",         numericFoldableOp (*))
+  , ("/",         numericFoldableOp (/))
+
   -- , ("mod",       numericFoldableOp mod)
   -- , ("quotient",  numericFoldableOp quot)
   -- , ("remainder", numericFoldableOp rem)
+
+  , ("=",           numEqBoolBinOp (==))
+  , ("/=",          numEqBoolBinOp (/=))
+  , ("<",           numOrdBoolBinOp (<))
+  , (">",           numOrdBoolBinOp (>))
+  , (">=",          numOrdBoolBinOp (>=))
+  , ("<=",          numOrdBoolBinOp (<=))
 
   , ("symbol?",      isTypeOp isSymbol)
   , ("boolean?",     isTypeOp isBoolean)
@@ -136,12 +144,6 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
 
-  -- , ("=",           numBoolBinOp (==))
-  -- , ("/=",          numBoolBinOp (/=))
-  -- , ("<",           numBoolBinOp (<))
-  -- , (">",           numBoolBinOp (>))
-  -- , (">=",          numBoolBinOp (>=))
-  -- , ("<=",          numBoolBinOp (<=))
   , ("and",         boolBoolBinOp (&&))
   , ("or",          boolBoolBinOp (||))
   , ("string=?",    strBoolBinOp (==))
@@ -205,13 +207,11 @@ numEqBoolBinOp = boolBinOp unpacker
     unpacker (SchemeNumber val) = return val
     unpacker nonNum = throwError $ TypeMismatch "number" nonNum
 
-numOrdBoolBinOp :: BoolBinOpBuilder Float
+numOrdBoolBinOp :: BoolBinOpBuilder SchemeReal
 numOrdBoolBinOp  = boolBinOp unpacker
   where
-    unpacker :: SchemeVal -> Either SchemeError Float
-    unpacker (SchemeNumber (SReal val))      = return val
-    unpacker (SchemeNumber (SRational val))  = return $ fromRational val
-    unpacker (SchemeNumber (SInteger val))   = return $ fromInteger val
+    unpacker :: SchemeVal -> Either SchemeError SchemeReal
+    unpacker (SchemeNumber (SchemeReal val))  = return val
     unpacker val                        = throwError $ TypeMismatch "real" val
 
 boolBoolBinOp :: BoolBinOpBuilder Bool

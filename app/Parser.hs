@@ -163,9 +163,9 @@ parseComplex = P.try $ do
 
 parseNumber :: P.Parser SchemeVal
 parseNumber = SchemeNumber <$> P.choice
-     [ wrap parseReal
+     [ parseComplex
+     , wrap parseReal
      , wrap parseRational
-     , parseComplex
      , wrap parseInteger
      ] where wrap = fmap SchemeReal
 
@@ -225,17 +225,19 @@ parseVector = do
 
 
 parseExpr :: P.Parser SchemeVal
-parseExpr = parseCharacter
-         <|> parseBool
-         <|> parseNumber
-         <|> parseSymbol
-         <|> parseVector
-         <|> parseString
-         <|> parseQuoted
-         <|> parseUnquotedSplicing
-         <|> parseUnquoted
-         <|> parseQuasiquoted
-         <|> parseListOrDottedList
+parseExpr = P.choice
+  [ parseCharacter
+  , parseBool
+  , parseNumber
+  , parseSymbol
+  , parseVector
+  , parseString
+  , parseQuoted
+  , parseUnquotedSplicing
+  , parseUnquoted
+  , parseQuasiquoted
+  , parseListOrDottedList
+  ]
 
 parseExprs :: P.Parser [SchemeVal]
 parseExprs = parseExpr `P.endBy` P.spaces
