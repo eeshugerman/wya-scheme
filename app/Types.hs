@@ -24,10 +24,7 @@ import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
 import Data.Ratio (numerator, denominator, (%))
-import Data.Complex (Complex, Complex((:+)), conjugate, realPart, imagPart)
-
-unwordsList :: [SchemeVal] -> String
-unwordsList = unwords . map show
+import Data.Complex (Complex, Complex((:+)), conjugate)
 
 {- naming convention:
      SchemeFoo   | a type and its constructor
@@ -36,20 +33,59 @@ unwordsList = unwords . map show
      SFoo        | pattern synonym for convenient access to SFoo'
 -}
 
+---------------------------------------------------------------------------------
+-- types
+---------------------------------------------------------------------------------
 
 data SchemeReal
   = SReal' Float
   | SRational' Rational
   | SInteger' Integer
 
-
 newtype SchemeComplex = SComplex' (Complex SchemeReal)
   deriving Eq
-
 
 data SchemeNumber
   = SchemeReal SchemeReal
   | SchemeComplex SchemeComplex
+
+data SchemeVal
+  = SSymbol String
+  | SBool Bool
+  | SChar Char
+  | SString String
+  | SchemeNumber SchemeNumber
+  | SList [SchemeVal]
+  | SVector (A.Array Int SchemeVal)
+  | SDottedList [SchemeVal] SchemeVal
+  | SPort Handle
+  | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
+  | SIOProc ([SchemeVal] -> IOSchemeValOrError)
+  | SProc
+    { procParams    :: [String]
+    , procVarParam  :: Maybe String
+    , procBody      :: [SchemeVal]
+    , procClosure   :: Env
+    }
+
+data SchemeError
+  = NumArgs Integer [SchemeVal]
+  | TypeMismatch String SchemeVal
+  | ParseError ParseError
+  | BadForm String SchemeVal
+  | UnboundVar String
+  -- | InternalError String
+  | Default String
+
+type SchemeValOrError = Either SchemeError SchemeVal
+type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
+type IONilOrError = ExceptT SchemeError IO ()
+
+type Env = IORef [(String, IORef SchemeVal)]
+
+---------------------------------------------------------------------------------
+-- patterns
+---------------------------------------------------------------------------------
 
 pattern SComplex :: Complex SchemeReal -> SchemeNumber
 pattern SComplex val = SchemeComplex (SComplex' val)
@@ -64,6 +100,12 @@ pattern SInteger :: Integer -> SchemeNumber
 pattern SInteger val = SchemeReal (SInteger' val)
 
 {-# COMPLETE SComplex, SReal, SRational, SInteger #-}
+
+---------------------------------------------------------------------------------
+-- instantiations
+---------------------------------------------------------------------------------
+
+---- SchemeReal ----
 
 instance Show SchemeReal where
   show = \case
@@ -157,6 +199,8 @@ instance Fractional SchemeReal where
     SInteger' val -> SRational' $ 1 % val
 
 
+---- SchemeComplex ----
+
 instance Show SchemeComplex where
   show (SComplex' (real :+ imag)) =
     let maybePlus = if imag > SInteger' 0 then "+" else ""
@@ -165,14 +209,13 @@ instance Show SchemeComplex where
 
 complexMag :: SchemeReal -> SchemeReal -> SchemeReal
 complexMag real imag =
-  let toFloat :: SchemeReal -> Float
-      toFloat = \case
-        SInteger' val -> fromInteger val
-        SReal' val -> val
-        SRational' val -> fromRational  val
-      realF = toFloat real
-      imagF = toFloat imag
-  in SReal' $ sqrt $ realF ** 2 + imagF ** 2
+  SReal' $ sqrt $ toFloat real ** 2 + toFloat imag ** 2
+  where
+    toFloat :: SchemeReal -> Float
+    toFloat = \case
+      SInteger' val -> fromInteger val
+      SReal' val -> val
+      SRational' val -> fromRational  val
 
 toComplex :: SchemeReal -> SchemeComplex
 toComplex val = SComplex' $ val :+ SInteger' 0
@@ -184,10 +227,9 @@ instance Num SchemeComplex where
         imag = aImag + bImag
     in SComplex' $ real :+ imag
 
-  -- TODO: bug
   (*) (SComplex' (aReal :+ aImag)) (SComplex' (bReal :+ bImag)) =
     let real = aReal * bReal - aImag * bImag
-        imag = aReal * bImag + bImag * aReal
+        imag = aReal * bImag + bReal * aImag
     in SComplex' $ real :+ imag
 
   abs (SComplex' (real :+ imag)) =
@@ -209,6 +251,8 @@ instance Fractional SchemeComplex where
         SComplex' (denom :+ _) = SComplex' val * SComplex' (conjugate val)
     in SComplex' $ (numerReal / denom) :+ (numerImag / denom)
 
+
+---- SchemeNumber ----
 
 instance Show SchemeNumber where
   show = \case
@@ -258,24 +302,10 @@ instance Fractional SchemeNumber where
     SchemeComplex val -> SchemeComplex $ recip val
 
 
-data SchemeVal
-  = SSymbol String
-  | SBool Bool
-  | SChar Char
-  | SString String
-  | SchemeNumber SchemeNumber
-  | SList [SchemeVal]
-  | SVector (A.Array Int SchemeVal)
-  | SDottedList [SchemeVal] SchemeVal
-  | SPort Handle
-  | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
-  | SIOProc ([SchemeVal] -> IOSchemeValOrError)
-  | SProc
-    { procParams    :: [String]
-    , procVarParam  :: Maybe String
-    , procBody      :: [SchemeVal]
-    , procClosure   :: Env
-    }
+---- SchemeVal ----
+
+unwordsList :: [SchemeVal] -> String
+unwordsList = unwords . map show
 
 instance Show SchemeVal where
   show = \case
@@ -299,14 +329,7 @@ instance Show SchemeVal where
           Just val  -> ". " ++ val
 
 
-data SchemeError
-  = NumArgs Integer [SchemeVal]
-  | TypeMismatch String SchemeVal
-  | ParseError ParseError
-  | BadForm String SchemeVal
-  | UnboundVar String
-  -- | InternalError String
-  | Default String
+---- SchemeError ----
 
 instance Show SchemeError where
   show = \case
@@ -324,11 +347,3 @@ instance Show SchemeError where
     --   "Internal error (read: wtf this shouldn't be possible): " ++ show msg
     Default msg ->
       "Error: " ++ msg
-
-
-
-type Env = IORef [(String, IORef SchemeVal)]
-
-type SchemeValOrError = Either SchemeError SchemeVal
-type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
-type IONilOrError = ExceptT SchemeError IO ()

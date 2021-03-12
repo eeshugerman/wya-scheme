@@ -9,7 +9,6 @@ import qualified GHC.IO.Handle
 import Data.Functor ((<&>))
 import Control.Monad.Except ( throwError, liftIO )
 import qualified Text.Parsec.Pos as Parsec
-import Data.Ratio ((%))
 
 import Types
   ( IOSchemeValOrError
@@ -37,78 +36,79 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
   , ("write",              write)
   , ("write-string",       writeString)
   ]
+
+wrappedApply :: [SchemeVal] -> IOSchemeValOrError
+wrappedApply [proc', SList args] = apply proc' args
+wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
+wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
+
+makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
+makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
+makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
+makePort _    badArgs            = throwError $ NumArgs 1 badArgs
+
+closePort :: [SchemeVal] -> IOSchemeValOrError
+closePort [SPort handle] = liftIO $ IO.hClose handle >> return (SList [])
+closePort [nonPort]      = throwError $ TypeMismatch "port" nonPort
+closePort badArgs        = throwError $ NumArgs 1 badArgs
+
+_inputPortProc
+  :: (IO.Handle -> IO SchemeVal)
+  -> ([SchemeVal] -> IOSchemeValOrError)
+_inputPortProc f = \case
+  -- TODO: default to current-input-port
+  [SPort handle] -> liftIO $ f handle
+  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
+  badArgs        -> throwError $ NumArgs 2 badArgs
+
+_outputPortProc
+  :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
+  -> ([SchemeVal] -> IOSchemeValOrError)
+_outputPortProc f = \case
+  -- TODO: default to current-input-port
+  [SPort handle, val] -> f handle val >> return (SList [])
+  [nonPort, _]        -> throwError $ TypeMismatch "port" nonPort
+  badArgs             -> throwError $ NumArgs 2 badArgs
+
+readChar :: [SchemeVal] -> IOSchemeValOrError
+readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
+
+peekChar :: [SchemeVal] -> IOSchemeValOrError
+peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
+
+-- this is a bit gruesome, but i can't find a better way to do it with
+-- parsec. attoparsec, on the other hand, has built-in support for
+-- incremental parsing
+read_ :: [SchemeVal] -> IOSchemeValOrError
+read_ [SPort handle] = do
+  -- unfortunately there's no way around hGetContents closing the handle,
+  -- so we work with a duplicate
+  tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
+  string <- liftIO $ IO.hGetContents tempHandle
+  (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
+  liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
+  liftIO $ IO.hClose tempHandle
+  return parsed
   where
-    wrappedApply [proc', SList args] = apply proc' args
-    wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
-    wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
+    posToBytes :: Parsec.SourcePos -> String -> Integer
+    posToBytes pos source = let
+      precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
+      in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
 
-    makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
-    makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
-    makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
-    makePort _    badArgs            = throwError $ NumArgs 1 badArgs
+read_ [nonPort] = throwError $ TypeMismatch "port" nonPort
+read_ badArgs   = throwError $ NumArgs 1 badArgs
 
-    closePort :: [SchemeVal] -> IOSchemeValOrError
-    closePort [SPort handle] = liftIO $ IO.hClose handle >> return (SList [])
-    closePort [nonPort]      = throwError $ TypeMismatch "port" nonPort
-    closePort badArgs        = throwError $ NumArgs 1 badArgs
+writeString :: [SchemeVal] -> IOSchemeValOrError
+writeString = _outputPortProc $ \handle val -> case val of
+  SString string ->
+    liftIO $ IO.hPutStr handle string >>
+    return (SList [])
+  nonString -> throwError $ TypeMismatch "string" nonString
 
-    _inputPortProc
-      :: (IO.Handle -> IO SchemeVal)
-      -> ([SchemeVal] -> IOSchemeValOrError)
-    _inputPortProc f = \case
-      -- TODO: default to current-input-port
-      [SPort handle] -> liftIO $ f handle
-      [nonPort]      -> throwError $ TypeMismatch "port" nonPort
-      badArgs        -> throwError $ NumArgs 2 badArgs
-
-    _outputPortProc
-      :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
-      -> ([SchemeVal] -> IOSchemeValOrError)
-    _outputPortProc f = \case
-      -- TODO: default to current-input-port
-      [SPort handle, val] -> f handle val >> return (SList [])
-      [nonPort, _]        -> throwError $ TypeMismatch "port" nonPort
-      badArgs             -> throwError $ NumArgs 2 badArgs
-
-    readChar :: [SchemeVal] -> IOSchemeValOrError
-    readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
-
-    peekChar :: [SchemeVal] -> IOSchemeValOrError
-    peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
-
-    -- this is a bit gruesome, but i can't find a better way to do it with
-    -- parsec. attoparsec, on the other hand, has built-in support for
-    -- incremental parsing
-    read_ :: [SchemeVal] -> IOSchemeValOrError
-    read_ [SPort handle] = do
-      -- unfortunately there's no way around hGetContents closing the handle,
-      -- so we work with a duplicate
-      tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
-      string <- liftIO $ IO.hGetContents tempHandle
-      (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
-      liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
-      liftIO $ IO.hClose tempHandle
-      return parsed
-      where
-        posToBytes :: Parsec.SourcePos -> String -> Integer
-        posToBytes pos source = let
-          precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
-          in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
-
-    read_ [nonPort] = throwError $ TypeMismatch "port" nonPort
-    read_ badArgs   = throwError $ NumArgs 1 badArgs
-
-    writeString :: [SchemeVal] -> IOSchemeValOrError
-    writeString = _outputPortProc $ \handle val -> case val of
-      SString string ->
-        liftIO $ IO.hPutStr handle string >>
-        return (SList [])
-      nonString -> throwError $ TypeMismatch "string" nonString
-
-    write :: [SchemeVal] -> IOSchemeValOrError
-    write = _outputPortProc $ \handle val ->
-        liftIO $ IO.hPutStr handle (show val) >>
-        return (SList [])
+write :: [SchemeVal] -> IOSchemeValOrError
+write = _outputPortProc $ \handle val ->
+    liftIO $ IO.hPutStr handle (show val) >>
+    return (SList [])
 
 
 primitives :: [(String, SchemeVal)]
@@ -160,8 +160,6 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("equal?",      equal)
   ]
 
-
-
 ------------------------------------------
 -- helpers (not actual scheme primitives)
 ------------------------------------------
@@ -180,9 +178,9 @@ numericFoldableOp op args           = foldl1M wrappedOp args
 
     wrappedOp :: SchemeVal -> SchemeVal -> SchemeValOrError
     wrappedOp (SchemeNumber a) (SchemeNumber b) = return $ SchemeNumber $ op a b
-    wrappedOp a           (SchemeNumber _) = throwError $ TypeMismatch "number" a
-    wrappedOp (SchemeNumber _) b           = throwError $ TypeMismatch "number" b
-    wrappedOp a           _           = throwError $ TypeMismatch "number" a
+    wrappedOp a                (SchemeNumber _) = throwError $ TypeMismatch "number" a
+    wrappedOp (SchemeNumber _) b                = throwError $ TypeMismatch "number" b
+    wrappedOp a                _                = throwError $ TypeMismatch "number" a
 
 boolBinOp
   :: (SchemeVal -> Either SchemeError a)  -- unpacker
@@ -212,7 +210,7 @@ numOrdBoolBinOp  = boolBinOp unpacker
   where
     unpacker :: SchemeVal -> Either SchemeError SchemeReal
     unpacker (SchemeNumber (SchemeReal val))  = return val
-    unpacker val                        = throwError $ TypeMismatch "real" val
+    unpacker val                              = throwError $ TypeMismatch "real" val
 
 boolBoolBinOp :: BoolBinOpBuilder Bool
 boolBoolBinOp = boolBinOp unpacker
@@ -241,74 +239,9 @@ isNumTypeOp
   -> ([SchemeVal] -> SchemeValOrError)
 isNumTypeOp test = \case
   [SchemeNumber num] -> return $ SBool $ test num
-  [_]           -> return $ SBool False
-  args          -> throwError $ NumArgs 1 args
+  [_]                -> return $ SBool False
+  args               -> throwError $ NumArgs 1 args
 
-
------------------------------------
-add :: SchemeNumber  -> SchemeNumber -> SchemeNumber
------------------------------------
-
-add (SInteger a)              (SInteger b)              = SInteger $ a + b
-add (SInteger a)              (SReal b)                 = SReal $ fromInteger a + b
-add (SInteger a)              (SRational b)             = SRational $ fromInteger a + b
--- add (SInteger a)              (SComplex b)              = SComplex $ intToCC a + b
-
-add a@(SReal _)               b@(SInteger _)            = add b a
-add (SReal a)                 (SReal b)                 = SReal $ a + b
-add (SReal a)                 (SRational b)             = SReal $ a + fromRational b
--- add (SReal a)                 (SComplex b)              = SComplex $ fromReal a + b
-
-add a@(SRational _ )          b@(SInteger _)            = add b a
-add a@(SRational _)           b@(SReal _)               = add b a
-add (SRational a)             (SRational  b)            = SRational $ a + b
--- add (SRational a)             (SComplex b)              = SComplex $ fromRational a + b
-
-add a@(SComplex _)            b@(SInteger _)            = add b a
-add a@(SComplex _)            b@(SReal _)               = add b a
-add a@(SComplex _)            b@(SRational _ )          = add b a
--- add (SComplex a)              (SComplex b)            = SComplex $ a + b
-
------------------------------------------
-multiply :: SchemeNumber -> SchemeNumber -> SchemeNumber
------------------------------------------
-
-multiply (SInteger a)              (SInteger b)              = SInteger $ a * b
-multiply (SInteger a)              (SReal b)                 = SReal $ fromInteger a * b
-multiply (SInteger a)              (SRational b)             = SRational $ fromInteger a * b
--- multiply (SInteger a)              (SComplex b)              = SComplex $ fromInteger a * b
-
-multiply a@(SReal _)               b@(SInteger _)            = multiply b a
-multiply (SReal a)                 (SReal b)                 = SReal $ a * b
-multiply (SReal a)                 (SRational b)             = SReal $ a * fromRational b
--- multiply (SReal a)                 (SComplex b)              = SComplex $ fromReal a * b
-
-multiply a@(SRational _)           b@(SInteger _)            = multiply b a
-multiply a@(SRational _)           b@(SReal _)               = multiply b a
-multiply (SRational a)             (SRational b)             = SRational $ a * b
--- multiply (SRational a)             (SComplex b)              = SComplex $ fromRational a * b
-
-multiply a@(SComplex _)            b@(SInteger _)            = add b a
-multiply a@(SComplex _)            b@(SReal _)               = add b a
-multiply a@(SComplex _)            b@(SRational _)           = add b a
--- multiply (SComplex a)              (SComplex b)              = SComplex $ a * b
-
------------------------------------------
-subtract_ :: SchemeNumber -> SchemeNumber -> SchemeNumber
------------------------------------------
-
-subtract_ a b = let negativeB = multiply (SInteger (-1)) b
-                in add a negativeB
-
------------------------------------------
-divide :: SchemeNumber -> SchemeNumber -> SchemeNumber
------------------------------------------
-
-divide (SInteger a)       (SInteger b)              = SRational $ a % b
-divide (SInteger a)       (SReal b)                 = SReal (fromInteger a / b)
-divide a@(SInteger _)     b@(SRational _)           = multiply a b
--- divide (SInteger a)       (SComplex b)              = SComplex $ fromInteger a / b
-divide a                  b                         = multiply a (divide (SInteger 1) b)
 
 -----------------------------------------
 -- type testing
