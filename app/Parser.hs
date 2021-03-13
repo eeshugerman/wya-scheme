@@ -43,18 +43,24 @@ parseSymbol = SSymbol <$> (peculiarSymbol <|> regularSymbol)
 
 
 parseBool :: P.Parser SchemeVal
-parseBool = SBool <$>
-  P.try (P.char '#' >> ((P.char 't' >> return True) <|>
-                        (P.char 'f' >> return False)))
+parseBool = P.try $ do
+  P.char '#'
+  bool 't' True <|> bool 'f' False
+  where
+    bool :: Char -> Bool -> P.Parser SchemeVal
+    bool char rval = P.char char >> return (SBool rval)
+
 
 parseCharacter :: P.Parser SchemeVal
 parseCharacter = let
   prefix = P.try $ P.string "#\\"
   namedChar name val =  P.try $ P.string name >> return val
-  charName =  namedChar "space"   ' '
-          <|> namedChar "newline" '\n'
-          <|> namedChar "tab"     '\t'
-          <|> P.anyChar
+  charName = P.choice
+    [ namedChar "space"   ' '
+    , namedChar "newline" '\n'
+    , namedChar "tab"     '\t'
+    , P.anyChar
+    ]
   in SChar <$> (prefix >> charName)
 
 
@@ -137,7 +143,6 @@ parseRational = P.try $ do
   return $ SRational' $ applySign sign (read numerator) % read denominator
 
 
--- TODO: #e / #i
 parseReal :: P.Parser SchemeReal
 parseReal = P.try $ do
   sign <- parseSign
@@ -146,7 +151,8 @@ parseReal = P.try $ do
   fractional <- P.many P.digit
   if whole ++ fractional == ""
     then P.pzero
-    else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
+    else let whole' = if whole == "" then "0" else whole
+             chars =  whole' ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
          in return $ SReal' $ applySign sign mag
 
@@ -173,7 +179,9 @@ parseSchemeVals = parseExpr `P.endBy` P.spaces
 
 parseMaybeDottedListEnd :: P.Parser (Maybe SchemeVal)
 parseMaybeDottedListEnd =
-  P.optionMaybe (P.char '.' >> P.skipMany1 P.space >> parseExpr)
+  let spaces = P.skipMany1 P.space
+      dottedListEnd = P.char '.' >> spaces >> parseExpr
+  in P.optionMaybe dottedListEnd
 
 
 
@@ -191,7 +199,7 @@ parseListOrDottedList = do
     simplifyDottedList a b = case b of
       SList b'           -> SList $ a ++ b'
       SDottedList ba bb  -> simplifyDottedList (a ++ ba) bb
-      _                     -> SDottedList a b
+      _                  -> SDottedList a b
 
 parseQuoted :: P.Parser SchemeVal
 parseQuoted = do
@@ -257,5 +265,7 @@ readExpr = readOrThrow parseExpr
 readExprs :: String -> String -> Either SchemeError [SchemeVal]
 readExprs = readOrThrow parseExprs
 
-readExprWithPos :: String -> String -> Either SchemeError (P.SourcePos, SchemeVal)
+readExprWithPos
+  :: String -> String
+  -> Either SchemeError (P.SourcePos, SchemeVal)
 readExprWithPos = readOrThrow parseExprWithPos

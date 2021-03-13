@@ -45,6 +45,7 @@ data SchemeReal
 newtype SchemeComplex = SComplex' (Complex SchemeReal)
   deriving Eq
 
+-- TODO: #e / #i
 data SchemeNumber
   = SchemeReal SchemeReal
   | SchemeComplex SchemeComplex
