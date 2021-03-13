@@ -1,8 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module Primitives ( primitives ,ioPrimitives) where
 
-
-import Control.Monad (zipWithM)
 import qualified Data.Bifunctor
 import qualified System.IO as IO
 import qualified GHC.IO.Handle
@@ -342,17 +340,16 @@ cons args                         = throwError $ NumArgs 2 args
 -----------------------------------------
 
 -- TODO
+-- will probably need to be a special form
 -- eq :: [SchemeVal] -> SchemeValOrError
 
-eqv :: [SchemeVal] -> SchemeValOrError
-eqv []                = throwError $ NumArgs 2 []
-eqv singleArg@[_]     = throwError $ NumArgs 2 singleArg
-eqv [a, b] = return $ SBool $ case (a, b) of
- (SSymbol a',    SSymbol b')    -> a' == b'
- (SChar a', SChar b')           -> a' == b'
- (SString a',    SString b')    -> a' == b'
- (SBool a',      SBool b')      -> a' == b'
- (SchemeNumber a',    SchemeNumber b')    ->
+_eqv :: SchemeVal -> SchemeVal -> Bool
+_eqv a b = case (a, b) of
+ (SSymbol a',      SSymbol b') -> a' == b'
+ (SChar a',        SChar b')   -> a' == b'
+ (SString a',      SString b') -> a' == b'
+ (SBool a',        SBool b')   -> a' == b'
+ (SchemeNumber a', SchemeNumber b') ->
    case (a', b') of
      (SInteger a'',  SInteger b'')  -> a'' == b''
      (SRational a'', SRational b'') -> a'' == b''
@@ -360,34 +357,21 @@ eqv [a, b] = return $ SBool $ case (a, b) of
      (SComplex a'',  SComplex b'')  -> a'' == b''
      (_, _)                         -> False
  (_, _)                         -> error "not implemented" -- TODO: iterables
-eqv args              = throwError $ NumArgs 2 args
 
+eqv :: [SchemeVal] -> SchemeValOrError
+eqv [a, b]         = return $ SBool $ _eqv a b
+eqv args           = throwError $ NumArgs 2 args
 
--- TODO: this is gross
-_isTrue :: SchemeVal -> Bool
-_isTrue (SBool val) = val
-_isTrue _ = False
-
-
-equalLists :: [SchemeVal] -> [SchemeVal] -> SchemeValOrError
-equalLists a b =
-    let allTrue :: [SchemeVal] -> SchemeVal
-        allTrue = SBool . all _isTrue
-        lispBools = zipWithM (\ a' b' -> equal [a', b']) a b
-    in fmap allTrue lispBools
-
+_equal :: SchemeVal -> SchemeVal -> Bool
+_equal a b = case (a, b) of
+  (SList a', SList b') -> allEqual a' b'
+  (SDottedList aBleep aBloop, SDottedList bBleep bBloop) ->
+    allEqual aBleep bBleep && _equal aBloop bBloop
+  (_, _) -> _eqv a b
+  where
+    allEqual :: [SchemeVal] -> [SchemeVal] -> Bool
+    allEqual x y = all (==True) $ zipWith _equal x y
 
 equal :: [SchemeVal] -> SchemeValOrError
-equal []                = throwError $ NumArgs 2 []
-equal singleArg@[_]     = throwError $ NumArgs 2 singleArg
-equal [a, b] = case (a, b) of
-  (SList a', SList b') -> equalLists a' b'
-
-  (SDottedList aBleep aBloop, SDottedList bBleep bBloop) -> do
-    bleepsEqual <- equalLists aBleep bBleep
-    bloopsEqual <- equal [aBloop, bBloop]
-    return $ SBool $ _isTrue bleepsEqual && _isTrue bloopsEqual
-
-  (_, _) -> eqv [a, b]
-
+equal [a, b]            = return $ SBool $ _equal a b
 equal args              = throwError $ NumArgs 2 args
