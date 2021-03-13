@@ -168,13 +168,12 @@ numericFoldableOp
   -> ([SchemeVal] -> SchemeValOrError )
 numericFoldableOp _ []              = throwError $ NumArgs 2 []
 numericFoldableOp _ singleArg@[_]   = throwError $ NumArgs 2 singleArg
-numericFoldableOp op args           = foldl1M wrappedOp args
+numericFoldableOp op (first:rest)   = foldlM wrappedOp first rest
   where
-    foldl1M f (x:xs) = foldlM f x xs
-    foldl1M _ [] = error "internal error in foldl1M"
-
     foldlM _ acc [] = return acc
-    foldlM f acc (x:xs) = f acc x >>= \ acc' -> foldlM f acc' xs
+    foldlM f acc (x:xs) = do
+      acc' <- f acc x
+      foldlM f acc' xs
 
     wrappedOp :: SchemeVal -> SchemeVal -> SchemeValOrError
     wrappedOp (SchemeNumber a) (SchemeNumber b) = return $ SchemeNumber $ op a b

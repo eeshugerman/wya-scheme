@@ -3,7 +3,6 @@
 module Parser where
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec ( (<|>) )
-import Data.Char ( toLower )
 import Data.Complex (Complex((:+)))
 import Data.Array ( listArray )
 import Numeric ( readFloat, readHex, readOct )
@@ -19,7 +18,6 @@ import Control.Monad.Except (throwError)
 import Data.Ratio ((%))
 
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
--- TODO: use `unexpected` and/or `<?>`, not `error`
 
 data Sign = Plus | Minus
 data Radix = Binary | Octal | Decimal | Hex
@@ -82,12 +80,11 @@ parseString = do
 
 parseSign :: P.Parser Sign
 parseSign = do
-  sign <- P.option '+' (P.oneOf "+-")
-  return $ case sign of
-    '+' -> Plus
-    '-' -> Minus
-    val -> error $ "expected '+' or '-', got '" ++ [val] ++ "'"
-
+  P.choice
+    [ P.char '-' >> return Minus
+    , P.char '+' >> return Plus
+    , return Plus
+    ]
 
 applySign :: (Num a) => Sign -> a -> a
 applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
@@ -109,13 +106,13 @@ parseInteger = P.try $ do
     parseRadix :: P.Parser Radix
     parseRadix = do
       P.char '#'
-      base <- P.oneOf "bBoOdDxX"
-      return $ case toLower base of
-        'b' -> Binary
-        'o' -> Octal
-        'd' -> Decimal
-        'x' -> Hex
-        val -> error $ "expected oneOf \"bodx\", got '" ++ [val] ++ "'"
+      P.choice
+        [ tryOneOf "bB" >> return Binary
+        , tryOneOf "oO" >> return Octal
+        , tryOneOf "dD" >> return Decimal
+        , tryOneOf "xX" >> return Hex
+        , return Decimal
+        ] where tryOneOf = P.try . P.oneOf
 
     readBinary :: String -> Integer
     readBinary chars = let
@@ -148,7 +145,7 @@ parseReal = P.try $ do
   P.string "."
   fractional <- P.many P.digit
   if whole ++ fractional == ""
-    then P.pzero   -- do a fail
+    then P.pzero
     else let chars = (if whole == "" then "0" else whole) ++ "." ++ fractional
              mag = fst $ head $ readFloat chars
          in return $ SReal' $ applySign sign mag

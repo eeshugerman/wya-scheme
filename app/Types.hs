@@ -27,7 +27,7 @@ import Data.Ratio (numerator, denominator, (%))
 import Data.Complex (Complex, Complex((:+)), conjugate)
 
 {- naming convention:
-     SchemeFoo   | a type and its constructor
+     SchemeFoo   | a type and (sometimes) its constructor
      SchemeFoo'  | a constructor wrapping SchemeFoo
      SFoo'       | a (most granular) constructor
      SFoo        | pattern synonym for convenient access to SFoo'
