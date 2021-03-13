@@ -18,9 +18,9 @@ executables:
       - -Wall
       - -Wno-unused-do-bind
 
-tests:
-  hunit:
-    main: Tests.hs
-    source-dirs:
-      - app
-      - test
+# tests:
+#   hunit:
+#     main: Tests.hs
+#     source-dirs:
+#       - app
+#       - test
