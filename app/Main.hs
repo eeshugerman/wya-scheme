@@ -56,7 +56,7 @@ evalFile filename = do
     evalAndPrint env expr =
       runExceptT (eval env expr) >>= \case
         Left err -> print err
-        Right val -> print val
+        Right _  -> return ()
 
 
 main :: IO ()
