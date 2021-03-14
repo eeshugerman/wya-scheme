@@ -339,7 +339,7 @@ instance Show SchemeError where
     BadForm msg form ->
       msg ++ ": " ++ show form
     NumArgs expected found ->
-      "Expected " ++ show expected ++ " args; found values " ++ unwordsList found
+      "Expected " ++ show expected ++ " args; found values " ++ show found
     TypeMismatch expected found ->
       "Invalid type: expected " ++ expected ++ ", found " ++ show found
     ParseError err ->

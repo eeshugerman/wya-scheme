@@ -18,8 +18,17 @@ import Types
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
 
+
+-- TODO: switch to Data.Map
 ioPrimitives :: [(String, SchemeVal)]
-ioPrimitives = map (Data.Bifunctor.second SIOProc)
+ioPrimitives =
+  map (Data.Bifunctor.second SPrimativeProc)
+  [ ("get-current-input-port",  getPortProc currentInputHdl)
+  , ("get-current-output-port", getPortProc currentOutputHdl)
+  , ("get-current-error-port",  getPortProc currentErrorHdl)
+  ]
+  ++
+  map (Data.Bifunctor.second SIOProc)
   [ ("apply",              wrappedApply)
 
   , ("open-input-file",    makePort IO.ReadMode)
@@ -34,6 +43,21 @@ ioPrimitives = map (Data.Bifunctor.second SIOProc)
   , ("write",              write)
   , ("write-string",       writeString)
   ]
+
+-- TODO: these should be user-overridable
+currentInputHdl :: IO.Handle
+currentInputHdl = IO.stdin
+
+currentOutputHdl :: IO.Handle
+currentOutputHdl = IO.stdout
+
+currentErrorHdl :: IO.Handle
+currentErrorHdl = IO.stderr
+
+getPortProc :: IO.Handle -> ([SchemeVal] -> SchemeValOrError)
+getPortProc port = \case
+  []   -> return $ SPort port
+  args -> throwError $ NumArgs 0 args
 
 wrappedApply :: [SchemeVal] -> IOSchemeValOrError
 wrappedApply [proc', SList args] = apply proc' args
@@ -54,7 +78,7 @@ _inputPortProc
   :: (IO.Handle -> IO SchemeVal)
   -> ([SchemeVal] -> IOSchemeValOrError)
 _inputPortProc f = \case
-  -- TODO: default to current-input-port
+  []             -> liftIO $ f currentInputHdl
   [SPort handle] -> liftIO $ f handle
   [nonPort]      -> throwError $ TypeMismatch "port" nonPort
   badArgs        -> throwError $ NumArgs 2 badArgs
@@ -63,9 +87,9 @@ _outputPortProc
   :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
   -> ([SchemeVal] -> IOSchemeValOrError)
 _outputPortProc f = \case
-  -- TODO: default to current-input-port
-  [SPort handle, val] -> f handle val >> return (SList [])
-  [nonPort, _]        -> throwError $ TypeMismatch "port" nonPort
+  [val]               -> f currentOutputHdl val >> return (SList [])
+  [val, SPort handle] -> f handle val >> return (SList [])
+  [_, nonPort]        -> throwError $ TypeMismatch "port" nonPort
   badArgs             -> throwError $ NumArgs 2 badArgs
 
 readChar :: [SchemeVal] -> IOSchemeValOrError
@@ -74,27 +98,32 @@ readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
 peekChar :: [SchemeVal] -> IOSchemeValOrError
 peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
 
--- this is a bit gruesome, but i can't find a better way to do it with
--- parsec. attoparsec, on the other hand, has built-in support for
--- incremental parsing
+-- TODO: doesn't work with stdin :(
 read_ :: [SchemeVal] -> IOSchemeValOrError
-read_ [SPort handle] = do
-  -- unfortunately there's no way around hGetContents closing the handle,
-  -- so we work with a duplicate
-  tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
-  string <- liftIO $ IO.hGetContents tempHandle
-  (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
-  liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
-  liftIO $ IO.hClose tempHandle
-  return parsed
+read_ = \case
+  []             -> _read currentInputHdl
+  [SPort handle] -> _read handle
+  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
+  badArgs        -> throwError $ NumArgs 1 badArgs
   where
+    -- this is a bit gruesome, but i can't find a better way to do it with
+    -- parsec. attoparsec, on the other hand, has built-in support for
+    -- incremental parsing
+    _read :: IO.Handle  -> IOSchemeValOrError
+    _read handle = do
+      -- unfortunately there's no way around hGetContents closing the handle,
+      -- so we work with a duplicate
+      tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
+      string <- liftIO $ IO.hGetContents tempHandle
+      (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
+      liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
+      liftIO $ IO.hClose tempHandle
+      return parsed
+
     posToBytes :: Parsec.SourcePos -> String -> Integer
     posToBytes pos source = let
       precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
       in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
-
-read_ [nonPort] = throwError $ TypeMismatch "port" nonPort
-read_ badArgs   = throwError $ NumArgs 1 badArgs
 
 writeString :: [SchemeVal] -> IOSchemeValOrError
 writeString = _outputPortProc $ \handle val -> case val of
@@ -109,6 +138,7 @@ write = _outputPortProc $ \handle val ->
     return (SList [])
 
 
+-- TODO: switch to Data.Map
 primitives :: [(String, SchemeVal)]
 primitives = map (Data.Bifunctor.second SPrimativeProc)
   [ ("+",         numericFoldableOp (+))
@@ -155,6 +185,7 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("cons",        cons)
 
   , ("eqv?",        eqv)
+  , ("eq?",         eq)
   , ("equal?",      equal)
   ]
 
@@ -307,7 +338,6 @@ stringToSymbol args          = throwError $ NumArgs 1 args
 -----------------------------------------
 
 car :: [SchemeVal] -> SchemeValOrError
-car []                     = throwError $ NumArgs 1 []
 car [arg] = case arg of
   SList (x:_)             -> return x
   empty@(SList [])        -> throwError $ TypeMismatch "pair" empty
@@ -317,7 +347,6 @@ car [arg] = case arg of
 car args                   = throwError $ NumArgs 1 args
 
 cdr :: [SchemeVal] -> SchemeValOrError
-cdr empty@[]                 = throwError $ NumArgs 1 empty
 cdr [arg] = case arg of
   SList (_:xs)              -> return $ SList xs
   empty@(SList [])          -> throwError $ TypeMismatch "pair" empty
@@ -328,8 +357,6 @@ cdr [arg] = case arg of
 cdr args                     = throwError $ NumArgs 1 args
 
 cons :: [SchemeVal] -> SchemeValOrError
-cons []                           = throwError $ NumArgs 2 []
-cons singleArg@[_]                = throwError $ NumArgs 2 singleArg
 cons [x, SList xs]                = return $ SList (x:xs)
 cons [x, SDottedList bleep bloop] = return $ SDottedList (x:bleep) bloop
 cons [a, b]                       = return $ SDottedList [a] b
@@ -338,10 +365,6 @@ cons args                         = throwError $ NumArgs 2 args
 -----------------------------------------
 -- equality
 -----------------------------------------
-
--- TODO
--- will probably need to be a special form
--- eq :: [SchemeVal] -> SchemeValOrError
 
 _eqv :: SchemeVal -> SchemeVal -> Bool
 _eqv a b = case (a, b) of
@@ -356,11 +379,23 @@ _eqv a b = case (a, b) of
      (SReal a'',     SReal b'')     -> a'' == b''
      (SComplex a'',  SComplex b'')  -> a'' == b''
      (_, _)                         -> False
- (_, _)                         -> error "not implemented" -- TODO: iterables
+
+ (SList [], SList []) -> True
+ (SList _,  SList _) -> notImplemented  -- TODO: loc a' == loc' b
+ (SProc {}, SProc {}) -> notImplemented  -- TODO: loc a' == loc' b
+
+ (_, _) -> False
+ where notImplemented  = error "not implemented"
+
 
 eqv :: [SchemeVal] -> SchemeValOrError
 eqv [a, b]         = return $ SBool $ _eqv a b
 eqv args           = throwError $ NumArgs 2 args
+
+-- r7rs permits an eq? more sensitive than eqv? for
+-- performance gains, but it also permits eq? = eqv?
+eq :: [SchemeVal] -> SchemeValOrError
+eq = eqv
 
 _equal :: SchemeVal -> SchemeVal -> Bool
 _equal a b = case (a, b) of
@@ -369,8 +404,10 @@ _equal a b = case (a, b) of
     allEqual aBleep bBleep && _equal aBloop bBloop
   (_, _) -> _eqv a b
   where
-    allEqual :: [SchemeVal] -> [SchemeVal] -> Bool
-    allEqual x y = all (==True) $ zipWith _equal x y
+    allEqual x y = let
+      sameLength = length x == length y
+      sameElems = all (==True) (zipWith _equal x y)
+      in sameLength && sameElems
 
 equal :: [SchemeVal] -> SchemeValOrError
 equal [a, b]            = return $ SBool $ _equal a b
