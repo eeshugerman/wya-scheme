@@ -106,7 +106,7 @@ apply SProc {..} args = let
          Nothing           -> []
        in do
          procEnv <- liftIO $ extendWith paramsArgsMap procClosure
-         last $ map (eval procEnv) procBody
+         last <$> mapM (eval procEnv) procBody
 
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
