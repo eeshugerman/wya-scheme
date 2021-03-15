@@ -3,12 +3,10 @@ name: wya-scheme
 dependencies:
   - base
   - parsec
-  - pretty-simple
   - text
   - array
-  - HUnit
-  - raw-strings-qq
   - mtl
+
 
 executables:
   wya-scheme-exe:
@@ -17,10 +15,3 @@ executables:
     ghc-options:
       - -Wall
       - -Wno-unused-do-bind
-
-# tests:
-#   hunit:
-#     main: Tests.hs
-#     source-dirs:
-#       - app
-#       - test
