@@ -6,6 +6,7 @@ dependencies:
   - text
   - array
   - mtl
+  - containers
 
 
 executables:

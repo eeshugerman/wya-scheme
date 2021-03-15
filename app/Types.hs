@@ -25,6 +25,7 @@ import Control.Monad.Except (ExceptT)
 import GHC.IO.Handle (Handle)
 import Data.Ratio (numerator, denominator, (%))
 import Data.Complex (Complex, Complex((:+)), conjugate)
+import qualified Data.Map.Strict as Map
 
 {- naming convention:
      SchemeFoo   | a type and (sometimes) its constructor
@@ -76,13 +77,14 @@ data SchemeError
   | BadForm String SchemeVal
   | UnboundVar String
   -- | InternalError String
-  | Default String
+  -- | NotImplemented String
+  -- | Default String
 
 type SchemeValOrError = Either SchemeError SchemeVal
 type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
 type IONilOrError = ExceptT SchemeError IO ()
 
-type Env = IORef [(String, IORef SchemeVal)]
+type Env = IORef (Map.Map String (IORef SchemeVal))
 
 ---------------------------------------------------------------------------------
 -- patterns
@@ -333,7 +335,7 @@ instance Show SchemeVal where
 ---- SchemeError ----
 
 instance Show SchemeError where
-  show = \case
+  show val = "Error: " ++ case val of
     UnboundVar varname ->
       "Unbound variable: " ++ varname
     BadForm msg form ->
@@ -346,5 +348,7 @@ instance Show SchemeError where
       "Parse error at " ++ show err
     -- InternalError msg ->
     --   "Internal error (read: wtf this shouldn't be possible): " ++ show msg
-    Default msg ->
-      "Error: " ++ msg
+    -- NotImplemented msg ->
+    --   "Not implemented: " ++ msg
+    -- Default msg ->
+    --   "Error: " ++ msg

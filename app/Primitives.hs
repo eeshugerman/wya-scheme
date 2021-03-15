@@ -19,7 +19,6 @@ import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
 
 
--- TODO: switch to Data.Map
 ioPrimitives :: [(String, SchemeVal)]
 ioPrimitives =
   map (Data.Bifunctor.second SPrimativeProc)
@@ -138,7 +137,6 @@ write = _outputPortProc $ \handle val ->
     return (SList [])
 
 
--- TODO: switch to Data.Map
 primitives :: [(String, SchemeVal)]
 primitives = map (Data.Bifunctor.second SPrimativeProc)
   [ ("+",         numericFoldableOp (+))

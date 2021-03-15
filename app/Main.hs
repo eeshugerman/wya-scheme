@@ -55,7 +55,7 @@ evalFile filename = do
     evalAndPrint :: Env -> SchemeVal -> IO ()
     evalAndPrint env expr =
       runExceptT (eval env expr) >>= \case
-        Left err -> print err
+        Left err -> print err  -- TODO: stop evaluation
         Right _  -> return ()
 
 

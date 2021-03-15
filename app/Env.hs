@@ -17,31 +17,32 @@ import Types
   , Env
   , SchemeVal
   )
+import qualified Data.Map.Strict as Map
 
 nullEnv :: IO Env
-nullEnv = newIORef []
+nullEnv = newIORef Map.empty
 
 getVar :: Env -> String -> IOSchemeValOrError
 getVar envRef varName = do
   envMap <- liftIO $ readIORef envRef
-  case lookup varName envMap of
+  case Map.lookup varName envMap of
     Nothing -> throwError $ UnboundVar varName
     Just varRef -> liftIO $ readIORef varRef
 
 setVar :: Env -> String -> SchemeVal -> IONilOrError
 setVar envRef varName val = do
   envMap <- liftIO $ readIORef envRef
-  case lookup varName envMap of
+  case Map.lookup varName envMap of
     Nothing -> throwError $ UnboundVar varName
     Just varRef -> liftIO $ writeIORef varRef val
 
 defineVar :: Env -> String -> SchemeVal -> IO ()
 defineVar envRef varName val = do
   envMap <- readIORef envRef
-  case lookup varName envMap of
+  case Map.lookup varName envMap of
     Nothing -> do
       varRef <- newIORef val
-      liftIO $ writeIORef envRef ((varName, varRef):envMap)
+      liftIO $ writeIORef envRef (Map.insert varName varRef envMap)
     Just varRef -> writeIORef varRef val
 
 extendWith :: [(String, SchemeVal)] -> Env -> IO Env
