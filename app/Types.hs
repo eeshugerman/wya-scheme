@@ -76,9 +76,6 @@ data SchemeError
   | ParseError ParseError
   | BadForm String SchemeVal
   | UnboundVar String
-  -- | InternalError String
-  -- | NotImplemented String
-  -- | Default String
 
 type SchemeValOrError = Either SchemeError SchemeVal
 type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
@@ -119,6 +116,8 @@ instance Show SchemeReal where
           denom = show $ denominator val
       in numer ++ "/" ++ denom
 
+-- can Eq and Ord be deduped somehow? they're exactly the same except
+-- for the operator... but it's tricky to type a helper function
 instance Eq SchemeReal where
   (==) a b = case (a, b) of
     (SReal' a',     SReal' b')     -> a' == b'
@@ -147,6 +146,7 @@ instance Ord SchemeReal where
     (SInteger' a', SRational' b')  -> compare (fromInteger a') b'
     (SInteger' a', SInteger' b')   -> compare a' b'
 
+
 instance Num SchemeReal where
   (+) a b = case (a, b) of
     (SReal' a', SReal' b')         -> SReal' $ a' + b'
@@ -161,8 +161,7 @@ instance Num SchemeReal where
     (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' + b'
     (SInteger' a', SInteger' b')   -> SInteger' $ a' + b'
 
-  -- can * and + be deduped somehow? exactly the same except
-  -- for the operator...
+  -- again: can these be deduped?
   (*) a b = case (a, b) of
     (SReal' a', SReal' b')         -> SReal' $ a' * b'
     (SReal' a', SRational' b')     -> SReal' $ a' * fromRational b'
@@ -176,7 +175,7 @@ instance Num SchemeReal where
     (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' * b'
     (SInteger' a', SInteger' b')   -> SInteger' $ a' * b'
 
-  -- again: can these be deduped?
+  -- more duplication...
   abs = \case
     SReal' val'     -> SReal' $ abs val'
     SRational' val' -> SRational' $ abs val'
@@ -346,9 +345,3 @@ instance Show SchemeError where
       "Invalid type: expected " ++ expected ++ ", found " ++ show found
     ParseError err ->
       "Parse error at " ++ show err
-    -- InternalError msg ->
-    --   "Internal error (read: wtf this shouldn't be possible): " ++ show msg
-    -- NotImplemented msg ->
-    --   "Not implemented: " ++ msg
-    -- Default msg ->
-    --   "Error: " ++ msg
