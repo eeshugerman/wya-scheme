@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE LambdaCase #-}
 module Types
@@ -116,81 +117,59 @@ instance Show SchemeReal where
           denom = show $ denominator val
       in numer ++ "/" ++ denom
 
--- can Eq and Ord be deduped somehow? they're exactly the same except
--- for the operator... but it's tricky to type a helper function
+schemeRealRawBinOp
+  :: (forall a. (Eq a, Ord a) => a -> a -> b)
+  -> (SchemeReal -> SchemeReal -> b)
+schemeRealRawBinOp op a b = case (a, b) of
+    (SReal' a',     SReal' b')     -> a' `op` b'
+    (SReal' a',     SRational' b') -> a' `op` fromRational b'
+    (SReal' a',     SInteger' b')  -> a' `op` fromInteger b'
+
+    (SRational' a', SReal' b')     -> fromRational a' `op` b'
+    (SRational' a', SRational' b') -> a' `op` b'
+    (SRational' a', SInteger' b')  -> a' `op` fromInteger b'
+
+    (SInteger' a',  SReal' b')     -> fromInteger a' `op` b'
+    (SInteger' a',  SRational' b') -> fromInteger a' `op` b'
+    (SInteger' a',  SInteger' b')  -> a' `op` b'
+
 instance Eq SchemeReal where
-  (==) a b = case (a, b) of
-    (SReal' a',     SReal' b')     -> a' == b'
-    (SReal' a',     SRational' b') -> a' == fromRational b'
-    (SReal' a',     SInteger' b')  -> a' == fromInteger b'
-
-    (SRational' a', SReal' b')     -> fromRational a' == b'
-    (SRational' a', SRational' b') -> a' == b'
-    (SRational' a', SInteger' b')  -> a' == fromInteger b'
-
-    (SInteger' a',  SReal' b')     -> fromInteger a' == b'
-    (SInteger' a',  SRational' b') -> fromInteger a' == b'
-    (SInteger' a',  SInteger' b')  -> a' == b'
+  (==) = schemeRealRawBinOp (==)
 
 instance Ord SchemeReal where
-  compare a b = case (a, b) of
-    (SReal' a', SReal' b')         -> compare a' b'
-    (SReal' a', SRational' b')     -> compare a' (fromRational b')
-    (SReal' a', SInteger' b')      -> compare a' (fromInteger b')
+  compare = schemeRealRawBinOp compare
 
-    (SRational' a', SReal' b')     -> compare (fromRational a') b'
-    (SRational' a', SRational' b') -> compare a' b'
-    (SRational' a', SInteger' b')  -> compare a' (fromInteger b')
+-- can this be defined in terms of schemeRealRawBinOp ?
+schemeRealBinOp
+  :: (forall a. Num a => a -> a -> a)
+  -> (SchemeReal -> SchemeReal -> SchemeReal)
+schemeRealBinOp op a b = case (a, b) of
+    (SReal' a',     SReal' b')     -> SReal' $ a' `op` b'
+    (SReal' a',     SRational' b') -> SReal' $ a' `op` fromRational b'
+    (SReal' a',     SInteger' b')  -> SReal' $ a' `op` fromInteger b'
 
-    (SInteger' a', SReal' b')      -> compare (fromInteger a') b'
-    (SInteger' a', SRational' b')  -> compare (fromInteger a') b'
-    (SInteger' a', SInteger' b')   -> compare a' b'
+    (SRational' a', SReal' b')     -> SReal' $ fromRational a' `op` b'
+    (SRational' a', SRational' b') -> SRational' $ a' `op` b'
+    (SRational' a', SInteger' b')  -> SRational' $ a' `op` fromInteger b'
 
+    (SInteger' a',  SReal' b')     -> SReal' $ fromInteger a' `op` b'
+    (SInteger' a',  SRational' b') -> SRational' $ fromInteger a' `op` b'
+    (SInteger' a',  SInteger' b')  -> SInteger' $ a' `op` b'
+
+schemeRealMonoOp
+  :: (forall a. Num a => a -> a)
+  -> (SchemeReal -> SchemeReal)
+schemeRealMonoOp op = \case
+  SReal' val     -> SReal' $ op val
+  SRational' val -> SRational' $ op val
+  SInteger' val  -> SInteger' $ op val
 
 instance Num SchemeReal where
-  (+) a b = case (a, b) of
-    (SReal' a', SReal' b')         -> SReal' $ a' + b'
-    (SReal' a', SRational' b')     -> SReal' $ a' + fromRational b'
-    (SReal' a', SInteger' b')      -> SReal' $ a' + fromInteger b'
-
-    (SRational' a', SReal' b')     -> SReal' $ fromRational a' + b'
-    (SRational' a', SRational' b') -> SRational' $ a' + b'
-    (SRational' a', SInteger' b')  -> SRational' $ a' + fromInteger b'
-
-    (SInteger' a', SReal' b')      -> SReal' $ fromInteger a' + b'
-    (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' + b'
-    (SInteger' a', SInteger' b')   -> SInteger' $ a' + b'
-
-  -- again: can these be deduped?
-  (*) a b = case (a, b) of
-    (SReal' a', SReal' b')         -> SReal' $ a' * b'
-    (SReal' a', SRational' b')     -> SReal' $ a' * fromRational b'
-    (SReal' a', SInteger' b')      -> SReal' $ a' * fromInteger b'
-
-    (SRational' a', SReal' b')     -> SReal' $ fromRational a' * b'
-    (SRational' a', SRational' b') -> SRational' $ a' * b'
-    (SRational' a', SInteger' b')  -> SRational' $ a' * fromInteger b'
-
-    (SInteger' a', SReal' b')      -> SReal' $ fromInteger a' * b'
-    (SInteger' a', SRational' b')  -> SRational' $ fromInteger a' * b'
-    (SInteger' a', SInteger' b')   -> SInteger' $ a' * b'
-
-  -- more duplication...
-  abs = \case
-    SReal' val'     -> SReal' $ abs val'
-    SRational' val' -> SRational' $ abs val'
-    SInteger' val'  -> SInteger' $ abs val'
-
-  signum = \case
-    SReal' val'     -> SReal' $ signum val'
-    SRational' val' -> SRational' $ signum val'
-    SInteger' val'  -> SInteger' $ signum val'
-
-  negate = \case
-    SReal' val'     -> SReal' $ negate val'
-    SRational' val' -> SRational' $ negate val'
-    SInteger' val'  -> SInteger' $ negate val'
-
+  (+) = schemeRealBinOp (+)
+  (*) = schemeRealBinOp (*)
+  abs = schemeRealMonoOp abs
+  signum = schemeRealMonoOp signum
+  negate = schemeRealMonoOp negate
   fromInteger = SInteger'
 
 instance Fractional SchemeReal where
@@ -199,7 +178,6 @@ instance Fractional SchemeReal where
     SReal' val -> SReal' $ 1 / val
     SRational' val -> SRational' $ 1 / val
     SInteger' val -> SRational' $ 1 % val
-
 
 ---- SchemeComplex ----
 
@@ -268,41 +246,33 @@ instance Eq SchemeNumber where
     (SchemeReal a',    SchemeComplex b')  -> toComplex a' == b'
     (SchemeReal a',    SchemeReal b')     -> a' == b'
 
+schemeNumberBinOp
+  :: (forall a. Num a => a -> a -> a)
+  -> (SchemeNumber -> SchemeNumber -> SchemeNumber)
+schemeNumberBinOp op a b = case (a, b) of
+    (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' `op` b'
+    (SchemeComplex a', SchemeReal b')     -> SchemeComplex $ a' `op` toComplex b'
+    (SchemeReal a',    SchemeComplex b')  -> SchemeComplex $ toComplex a' `op` b'
+    (SchemeReal a',    SchemeReal b')     -> SchemeReal $ a' `op` b'
+
+schemeNumberMonoOp
+  :: (forall a. (Num a, Fractional a) => a -> a)
+  -> (SchemeNumber -> SchemeNumber)
+schemeNumberMonoOp op = \case
+  SchemeComplex val -> SchemeComplex $ op val
+  SchemeReal val -> SchemeReal $ op val
+
 instance Num SchemeNumber where
-  (+) a b = case (a, b) of
-    (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' + b'
-    (SchemeComplex a', SchemeReal b')     -> SchemeComplex $ a' + toComplex b'
-    (SchemeReal a',    SchemeComplex b')  -> SchemeComplex $ toComplex a' + b'
-    (SchemeReal a',    SchemeReal b')     -> SchemeReal $ a' + b'
-
-  (*) a b = case (a, b) of
-    (SchemeComplex a', SchemeComplex b')  -> SchemeComplex $ a' * b'
-    (SchemeComplex a', SchemeReal b')     -> SchemeComplex $ a' * toComplex b'
-    (SchemeReal a',    SchemeComplex b')  -> SchemeComplex $ toComplex a' * b'
-    (SchemeReal a',    SchemeReal b')     -> SchemeReal $ a' * b'
-
-  abs = \case
-    SchemeComplex val -> SchemeComplex $ abs val
-    SchemeReal val -> SchemeReal $ abs val
-
-  signum = \case
-    SchemeComplex val -> SchemeComplex $ signum val
-    SchemeReal val -> SchemeReal $ signum val
-
-  negate = \case
-    SchemeComplex val -> SchemeComplex $ negate val
-    SchemeReal val -> SchemeReal $ negate val
-
+  (+) = schemeNumberBinOp (+)
+  (*) = schemeNumberBinOp (*)
+  abs = schemeNumberMonoOp abs
+  signum = schemeNumberMonoOp signum
+  negate = schemeNumberMonoOp negate
   fromInteger val = SInteger val
-
 
 instance Fractional SchemeNumber where
   fromRational val = SRational val
-
-  recip = \case
-    SchemeReal val -> SchemeReal $ recip val
-    SchemeComplex val -> SchemeComplex $ recip val
-
+  recip = schemeNumberMonoOp recip
 
 ---- SchemeVal ----
 
