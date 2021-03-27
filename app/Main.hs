@@ -3,6 +3,7 @@ module Main where
 import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
 import Control.Monad.Except (runExceptT)
+import Data.Functor ((<&>))
 
 import Parser (readExpr, readExprs)
 import Primitives (primitives, ioPrimitives)
@@ -17,23 +18,24 @@ import Types
 
 primitiveEnv :: IO Env
 primitiveEnv = nullEnv
-           >>= extendWith primitives
-           >>= extendWith ioPrimitives
-
-loop_ :: Monad m => m a -> (a -> m ()) -> m ()
-loop_ getNext action = getNext >>= action >> loop_ getNext action
+  >>= extendWith primitives
+  >>= extendWith ioPrimitives
 
 runRepl :: IO ()
 runRepl = do
   env <- primitiveEnv
-  loop_ readFromPrompt (evalAndPrint env)
+  loop readFromPrompt (evalAndPrint env)
   where
-    {- HLint ignore "Use <&>" -}
+    loop :: Monad m => m a -> (a -> m ()) -> m ()
+    loop getNext action = do
+      val <- getNext
+      action val
+      loop getNext action
+
     readFromPrompt :: IO SchemeValOrError
-    readFromPrompt = putStr ">>> "
-                  >> hFlush stdout
-                  >> getLine
-                 >>= return . readExpr "REPL"
+    readFromPrompt = do
+      putStr ">>> " >> hFlush stdout
+      getLine <&> readExpr "REPL"
 
     evalAndPrint :: Env -> SchemeValOrError -> IO ()
     evalAndPrint env expr = case expr of
