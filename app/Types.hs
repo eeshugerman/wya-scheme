@@ -11,7 +11,13 @@ module Types
     , SReal
     , SComplex
     )
-  , SchemeVal (..)
+  , SchemeVal
+    ( ..
+    , Quote
+    , Quasiquote
+    , Unquote
+    , UnquoteSplicing
+    )
   , SchemeError (..)
   , SchemeValOrError
   , IOSchemeValOrError
@@ -101,6 +107,18 @@ pattern SInteger :: Integer -> SchemeNumber
 pattern SInteger val = SchemeReal (SInteger' val)
 
 {-# COMPLETE SComplex, SReal, SRational, SInteger #-}
+
+pattern Quote :: SchemeVal -> SchemeVal
+pattern Quote val = SList [SSymbol "quote", val]
+
+pattern Quasiquote :: SchemeVal -> SchemeVal
+pattern Quasiquote val = SList [SSymbol "quasiquote", val]
+
+pattern Unquote :: SchemeVal -> SchemeVal
+pattern Unquote val = SList [SSymbol "unquote", val]
+
+pattern UnquoteSplicing :: SchemeVal -> SchemeVal
+pattern UnquoteSplicing val = SList [SSymbol "unquote-splicing", val]
 
 ---------------------------------------------------------------------------------
 -- instantiations
@@ -286,7 +304,11 @@ instance Show SchemeVal where
     SBool False           -> "#f"
     SChar val             -> "#\\" ++ [val] -- TODO: named chars
     SString val           -> "\"" ++ val ++ "\""
-    SchemeNumber val           -> show val
+    SchemeNumber val      -> show val
+    Quote val             -> "'" ++ show val
+    Quasiquote val        -> "`" ++ show val
+    Unquote val           -> "," ++ show val
+    UnquoteSplicing val   -> ",@" ++ show val
     SList val             -> "(" ++ unwordsList val ++ ")"
     SVector val           -> "#(" ++ unwordsList (A.elems val) ++ ")"
     SDottedList begin end -> "(" ++ unwordsList begin ++ " . " ++ show end ++ ")"

@@ -18,49 +18,73 @@ import Env (getVar , defineVar , setVar, extendWith)
 import Parser (readExprs)
 
 
+---------------------------------------------------------------------------------
+-- misc helpes
+---------------------------------------------------------------------------------
+nil :: SchemeVal
+nil = SList []
+
 liftThrows :: Either SchemeError a -> ExceptT SchemeError IO a
 liftThrows = \case
   Left err -> throwError err
   Right val -> return val
 
+---------------------------------------------------------------------------------
+-- quasiquote stuff
+---------------------------------------------------------------------------------
+negativeQqDepth :: SchemeVal -> SchemeError
+negativeQqDepth = BadForm "negative quasiquote depth"
+
+data MaybeSpliced a = Typical a | Spliced a
+
+instance Functor MaybeSpliced where
+  fmap f = \case
+    Typical val -> Typical $ f val
+    Spliced val -> Spliced $ f val
 
 evalQuasiquoted :: Env -> SchemeVal -> IOSchemeValOrError
-evalQuasiquoted env (SList list') = let
-  unquote val = SList [SSymbol "unquote", val]
-  quasiquote val = SList [SSymbol "quasiquote", val]
+evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
+  Typical val -> return val
+  Spliced val -> throwError $ BadForm "splicing weirdness" val
+  where
+    iter
+      :: Integer      -- quasiquote depth
+      -> [SchemeVal]  -- accumulator
+      -> [SchemeVal]  -- remaining
+      -> ExceptT SchemeError IO (MaybeSpliced SchemeVal)
 
-  iter
-    :: Integer      -- quasiquote level
-    -> [SchemeVal]  -- accumulator
-    -> [SchemeVal]  -- remaining
-    -> IOSchemeValOrError
+    iter _ acc [] = return $ Typical $ SList $ reverse acc
 
-  iter _ acc [] = return $ SList $ reverse acc
+    iter depth _ [SSymbol "unquote", val]
+      | depth == 0 = throwError $ negativeQqDepth val
+      | depth == 1 = Typical <$> eval env val
+      | otherwise  = case val of
+          SList list' -> fmap Unquote <$> iter (depth - 1) [] list'
+          nonList -> return $ Unquote <$> Typical nonList
 
-  iter qqDepth _ [SSymbol "unquote", val] =
-    if qqDepth == 1
-    then eval env val
-    else case val of
-      SList list -> unquote <$> iter (qqDepth - 1) [] list
-      nonList -> return $ unquote nonList
+    iter depth _ [SSymbol "unquote-splicing", val]
+      | depth == 0 = throwError $ negativeQqDepth val
+      | depth == 1 = Spliced <$> eval env val
+      | otherwise  = case val of
+          SList list' -> fmap UnquoteSplicing <$> iter (depth - 1) [] list'
+          nonList -> return $ UnquoteSplicing <$> Spliced nonList
 
-  -- TODO: unquote-splicing
+    iter depth _ [SSymbol "quasiquote", val] = case val of
+      SList list' -> fmap Quasiquote <$> iter (depth + 1) [] list'
+      nonList -> return $ Quasiquote <$> Typical nonList
 
-  iter qqDepth _ [SSymbol "quasiquote", val] =
-    case val of
-      SList list -> quasiquote <$> iter (qqDepth + 1) [] list
-      nonList -> return $ quasiquote nonList
+    iter depth acc (SList list':xs) = iter depth [] list' >>= \case
+      Typical val -> iter depth (val:acc) xs
+      Spliced (SList splicedList) -> iter depth (reverse splicedList ++ acc) xs
+      Spliced splicedNonList -> throwError $ TypeMismatch "list" splicedNonList
 
-  iter qqDepth acc (SList list:xs) = do
-    scannedList <- iter qqDepth [] list
-    iter qqDepth (scannedList:acc) xs
-
-  iter qqDepth acc (x:xs) = iter qqDepth (x:acc) xs
-
-  in iter 1 [] list'
+    iter depth acc (x:xs) = iter depth (x:acc) xs
 
 evalQuasiquoted _ val = return val
 
+---------------------------------------------------------------------------------
+-- proc stuff
+---------------------------------------------------------------------------------
 
 data ProcSpec = ProcSpec
   { psEnv      :: Env
@@ -103,7 +127,7 @@ apply SProc {..} args = let
        remainingArgs = drop numParams' args
        paramsArgsMap = zip procParams args ++ case procVarParam of
          Just varParamName -> [(varParamName, SList remainingArgs)]
-         Nothing           -> []
+         Nothing -> []
        in do
          procEnv <- liftIO $ extendWith paramsArgsMap procClosure
          last <$> mapM (eval procEnv) procBody
@@ -113,7 +137,7 @@ apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
 pattern Lambda :: [SchemeVal] -> [SchemeVal] -> SchemeVal
 pattern Lambda params body <- SList
-  ( SSymbol "lambda" : SList params : body)
+  (SSymbol "lambda" : SList params : body)
 
 pattern VariadicLambda
   :: [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
@@ -139,8 +163,9 @@ pattern VariadicProcDef name params varParam body <- SList
     : body
   )
 
-nil :: SchemeVal
-nil = SList []
+---------------------------------------------------------------------------------
+-- eval
+---------------------------------------------------------------------------------
 
 eval :: Env -> SchemeVal -> IOSchemeValOrError
 eval _   val@(SDottedList _ _) = throwError $ BadForm "Can't eval dotted list" val
@@ -149,23 +174,14 @@ eval _   val@(SVector _)       = throwError $ BadForm "Can't eval vector" val
 eval _   val@(SBool _)         = return val
 eval _   val@(SChar _)         = return val
 eval _   val@(SString _)       = return val
-eval _   val@(SchemeNumber _)       = return val
+eval _   val@(SchemeNumber _)  = return val
 
 eval env (SSymbol varName)     = getVar env varName
 
-eval _   (SList [SSymbol "quote", val]) = return val
-
-eval env (SList [SSymbol "quasiquote", val]) = evalQuasiquoted env val
-
-eval env (SList [SSymbol "eval",  val]) = eval env val
-
-eval env (SList [SSymbol "load",  val]) = case val of
-  SString filename ->
-    liftIO (readFile filename) >>=
-    liftThrows . readExprs filename >>=
-    mapM_ (eval env) >>
-    return nil
-  badArg -> throwError $ TypeMismatch "string" badArg
+eval _   (Quote val)           = return val
+eval env (Quasiquote val)      = evalQuasiquoted env val
+eval _   (Unquote val)         = throwError $ negativeQqDepth val
+eval _   (UnquoteSplicing val) = throwError $ negativeQqDepth val
 
 eval env (Lambda params body) =
   liftThrows $ makeProc ProcSpec
@@ -222,9 +238,19 @@ eval env (VariadicProcDef name params varParam body) =
      liftIO $ defineVar env name proc'
      return nil
 
+eval env (SList [SSymbol "eval",  val]) = eval env val
+
+eval env (SList [SSymbol "load",  val]) = case val of
+  SString filename ->
+    liftIO (readFile filename) >>=
+    liftThrows . readExprs filename >>=
+    mapM_ (eval env) >>
+    return nil
+  badArg -> throwError $ TypeMismatch "string" badArg
+
 eval env (SList (procExpr:args)) =
   do proc' <- eval env procExpr
      evaledArgs <- mapM (eval env) args
      apply proc' evaledArgs
 
-eval _ form = throwError $ BadForm "Unrecognized form" form
+eval _ form = throwError $ BadForm "LEARN 2 CODE!!1!" form
