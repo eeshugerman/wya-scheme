@@ -76,6 +76,12 @@ data SchemeVal
     , procBody      :: [SchemeVal]
     , procClosure   :: Env
     }
+  | SMacro
+    { macroParams    :: [String]
+    , macroVarParam  :: Maybe String
+    , macroBody      :: [SchemeVal]
+    , macroClosure   :: Env
+    }
 
 data SchemeError
   = NumArgs Integer [SchemeVal]
@@ -315,6 +321,7 @@ instance Show SchemeVal where
     SPort _               -> "<IO port>"
     SPrimativeProc _      -> "<primitive>"
     SIOProc _             -> "<IO primitive>"
+    SMacro {}              -> "<macro>"
     SProc {procParams=params, procVarParam=varParam} ->
       "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
       where
@@ -332,7 +339,7 @@ instance Show SchemeError where
     BadForm msg form ->
       msg ++ ": " ++ show form
     NumArgs expected found ->
-      "Expected " ++ show expected ++ " args; found values " ++ show found
+      "Expected " ++ show expected ++ " arg(s); found value(s) " ++ show found
     TypeMismatch expected found ->
       "Invalid type: expected " ++ expected ++ ", found " ++ show found
     ParseError err ->

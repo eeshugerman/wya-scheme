@@ -42,6 +42,7 @@ instance Functor MaybeSpliced where
     Typical val -> Typical $ f val
     Spliced val -> Spliced $ f val
 
+-- TODO: BUG: this doesn't eval correctly: `(1 ```,,@,,@(list (+ 1 2)) 4)
 evalQuasiquoted :: Env -> SchemeVal -> IOSchemeValOrError
 evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
   Typical val -> return val
@@ -94,8 +95,9 @@ data ProcSpec = ProcSpec
   , psBody     :: [SchemeVal]
   }
 
+
 makeProc :: ProcSpec -> SchemeValOrError
-makeProc ProcSpec{..} =
+makeProc ProcSpec {..} =
   do params <- mapM symbolToString psParams
      varParam <- mapM symbolToString psVarParam
      return $ SProc
@@ -103,13 +105,12 @@ makeProc ProcSpec{..} =
        , procVarParam = varParam
        , procBody     = psBody
        , procClosure  = psEnv
-       }
-  where
-    symbolToString :: SchemeVal -> Either SchemeError String
-    symbolToString = \case
-      SSymbol val -> return val
-      _ -> throwError $ BadForm "Invalid procedure definition"
-                                (SList (SSymbol psName : psParams))
+       } where
+        symbolToString = \case
+          SSymbol val -> return val
+          _ -> throwError $ BadForm
+                "Invalid procedure definition"
+                (SList (SSymbol psName : psParams))
 
 apply :: SchemeVal -> [SchemeVal] -> IOSchemeValOrError
 
@@ -131,6 +132,7 @@ apply SProc {..} args = let
        in do
          procEnv <- liftIO $ extendWith paramsArgsMap procClosure
          last <$> mapM (eval procEnv) procBody
+
 
 apply nonProc _ = throwError $ TypeMismatch "procedure" nonProc
 
@@ -162,6 +164,54 @@ pattern VariadicProcDef name params varParam body <- SList
     : SDottedList (SSymbol name : params) varParam
     : body
   )
+
+---------------------------------------------------------------------------------
+-- macros
+---------------------------------------------------------------------------------
+-- TODO: dedup from proc stuff
+
+pattern MacroDef
+  :: String -> [SchemeVal] -> [SchemeVal] -> SchemeVal
+pattern MacroDef name params body <- SList
+  ( SSymbol "define-macro"
+    : SList (SSymbol name : params)
+    : body
+  )
+
+makeMacro :: ProcSpec -> SchemeValOrError
+makeMacro ProcSpec {..} =
+  do params <- mapM symbolToString psParams
+     varParam <- mapM symbolToString psVarParam
+     return $ SMacro
+       { macroParams   = params
+       , macroVarParam = varParam
+       , macroBody     = psBody
+       , macroClosure  = psEnv
+       } where
+        symbolToString = \case
+          SSymbol val -> return val
+          _ -> throwError $ BadForm
+                "Invalid macro definition"
+                (SList (SSymbol psName : psParams))
+
+
+applyMacro env SMacro {..} args = let
+  numParams' = length macroParams
+  numParams  = toInteger numParams'
+  numArgs    = toInteger $ length args
+  expandedMacro =
+    if (numParams > numArgs) ||
+        (numParams < numArgs && isNothing macroVarParam)
+    then throwError $ NumArgs numParams args
+    else let
+      remainingArgs = drop numParams' args
+      paramsArgsMap = zip macroParams args ++ case macroVarParam of
+        Just varParamName -> [(varParamName, SList remainingArgs)]
+        Nothing -> []
+      in do
+        procEnv <- liftIO $ extendWith paramsArgsMap macroClosure
+        last <$> mapM (eval procEnv) macroBody
+  in expandedMacro >>= eval env
 
 ---------------------------------------------------------------------------------
 -- eval
@@ -238,6 +288,17 @@ eval env (VariadicProcDef name params varParam body) =
      liftIO $ defineVar env name proc'
      return nil
 
+eval env (MacroDef name params body) =
+  do macro <- liftThrows $ makeMacro ProcSpec
+       { psEnv      = env
+       , psName     = name
+       , psParams   = params
+       , psVarParam = Nothing
+       , psBody     = body
+       }
+     liftIO $ defineVar env name macro
+     return nil
+
 eval env (SList [SSymbol "eval",  val]) = eval env val
 
 eval env (SList [SSymbol "load",  val]) = case val of
@@ -249,8 +310,11 @@ eval env (SList [SSymbol "load",  val]) = case val of
   badArg -> throwError $ TypeMismatch "string" badArg
 
 eval env (SList (procExpr:args)) =
-  do proc' <- eval env procExpr
-     evaledArgs <- mapM (eval env) args
-     apply proc' evaledArgs
+  eval env procExpr >>= \case
+    macro@SMacro {} -> do
+      applyMacro env macro args
+    proc' -> do
+      evaledArgs <- mapM (eval env) args
+      apply proc' evaledArgs
 
 eval _ form = throwError $ BadForm "LEARN 2 CODE!!1!" form
