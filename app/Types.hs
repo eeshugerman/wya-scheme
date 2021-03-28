@@ -321,7 +321,7 @@ instance Show SchemeVal where
     SPort _               -> "<IO port>"
     SPrimativeProc _      -> "<primitive>"
     SIOProc _             -> "<IO primitive>"
-    SMacro {}              -> "<macro>"
+    SMacro {}             -> "<macro>"
     SProc {procParams=params, procVarParam=varParam} ->
       "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
       where

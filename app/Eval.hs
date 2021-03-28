@@ -56,19 +56,19 @@ evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
 
     iter _ acc [] = return $ Typical $ SList $ reverse acc
 
-    iter depth _ [SSymbol "unquote", val]
-      | depth == 0 = throwError $ negativeQqDepth val
-      | depth == 1 = Typical <$> eval env val
-      | otherwise  = case val of
-          SList list' -> fmap Unquote <$> iter (depth - 1) [] list'
-          nonList -> return $ Unquote <$> Typical nonList
+    iter depth _ [SSymbol "unquote", val] = case depth of
+      0 -> throwError $ negativeQqDepth val
+      1 -> Typical <$> eval env val
+      _ -> case val of
+        SList list' -> fmap Unquote <$> iter (depth - 1) [] list'
+        nonList -> return $ Unquote <$> Typical nonList
 
-    iter depth _ [SSymbol "unquote-splicing", val]
-      | depth == 0 = throwError $ negativeQqDepth val
-      | depth == 1 = Spliced <$> eval env val
-      | otherwise  = case val of
-          SList list' -> fmap UnquoteSplicing <$> iter (depth - 1) [] list'
-          nonList -> return $ UnquoteSplicing <$> Spliced nonList
+    iter depth _ [SSymbol "unquote-splicing", val] = case depth of
+      0 -> throwError $ negativeQqDepth val
+      1 -> Spliced <$> eval env val
+      _ -> case val of
+        SList list' -> fmap UnquoteSplicing <$> iter (depth - 1) [] list'
+        nonList -> return $ UnquoteSplicing <$> Spliced nonList
 
     iter depth _ [SSymbol "quasiquote", val] = case val of
       SList list' -> fmap Quasiquote <$> iter (depth + 1) [] list'
