@@ -42,11 +42,11 @@ instance Functor MaybeSpliced where
     Typical val -> Typical $ f val
     Spliced val -> Spliced $ f val
 
--- TODO: BUG: this doesn't eval correctly: `(1 ```,,@,,@(list (+ 1 2)) 4)
+-- TODO: BUG: this doesn't eval correctly: ``(,,@(list 1))
 evalQuasiquoted :: Env -> SchemeVal -> IOSchemeValOrError
 evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
   Typical val -> return val
-  Spliced val -> throwError $ BadForm "splicing weirdness" val
+  Spliced val -> return $ UnquoteSplicing val
   where
     iter
       :: Integer      -- quasiquote depth
@@ -68,7 +68,7 @@ evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
       1 -> Spliced <$> eval env val
       _ -> case val of
         SList list' -> fmap UnquoteSplicing <$> iter (depth - 1) [] list'
-        nonList -> return $ UnquoteSplicing <$> Spliced nonList
+        nonList -> return $ UnquoteSplicing <$> Typical nonList
 
     iter depth _ [SSymbol "quasiquote", val] = case val of
       SList list' -> fmap Quasiquote <$> iter (depth + 1) [] list'
