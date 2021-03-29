@@ -23,6 +23,7 @@ module Types
   , IOSchemeValOrError
   , IONilOrError
   , Env
+  , CallableSpec (..)
   ) where
 
 import Data.IORef
@@ -58,6 +59,14 @@ data SchemeNumber
   = SchemeReal SchemeReal
   | SchemeComplex SchemeComplex
 
+data CallableSpec
+  = CallableSpec
+  { cClosure   :: Env
+  , cParams    :: [String]
+  , cVarParam  :: Maybe String
+  , cBody      :: [SchemeVal]
+  }
+
 data SchemeVal
   = SSymbol String
   | SBool Bool
@@ -70,18 +79,8 @@ data SchemeVal
   | SPort Handle
   | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
   | SIOProc ([SchemeVal] -> IOSchemeValOrError)
-  | SProc
-    { procParams    :: [String]
-    , procVarParam  :: Maybe String
-    , procBody      :: [SchemeVal]
-    , procClosure   :: Env
-    }
-  | SMacro
-    { macroParams    :: [String]
-    , macroVarParam  :: Maybe String
-    , macroBody      :: [SchemeVal]
-    , macroClosure   :: Env
-    }
+  | SProc CallableSpec
+  | SMacro CallableSpec
 
 data SchemeError
   = NumArgs Integer [SchemeVal]
@@ -100,6 +99,7 @@ type Env = IORef (Map.Map String (IORef SchemeVal))
 -- patterns
 ---------------------------------------------------------------------------------
 
+-- numbers
 pattern SComplex :: Complex SchemeReal -> SchemeNumber
 pattern SComplex val = SchemeComplex (SComplex' val)
 
@@ -114,6 +114,7 @@ pattern SInteger val = SchemeReal (SInteger' val)
 
 {-# COMPLETE SComplex, SReal, SRational, SInteger #-}
 
+-- quoting stuff
 pattern Quote :: SchemeVal -> SchemeVal
 pattern Quote val = SList [SSymbol "quote", val]
 
@@ -322,7 +323,7 @@ instance Show SchemeVal where
     SPrimativeProc _      -> "<primitive>"
     SIOProc _             -> "<IO primitive>"
     SMacro {}             -> "<macro>"
-    SProc {procParams=params, procVarParam=varParam} ->
+    SProc CallableSpec {cParams=params, cVarParam=varParam} ->
       "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
       where
         showVarArgs = case varParam of
