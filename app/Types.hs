@@ -309,7 +309,10 @@ instance Show SchemeVal where
     SSymbol val           -> val
     SBool True            -> "#t"
     SBool False           -> "#f"
-    SChar val             -> "#\\" ++ [val] -- TODO: named chars
+    SChar ' '             -> "#\\space"
+    SChar '\n'            -> "#\\newline"
+    SChar '\t'            -> "#\\tab"
+    SChar val             -> "#\\" ++ [val]
     SString val           -> "\"" ++ val ++ "\""
     SchemeNumber val      -> show val
     Quote val             -> "'" ++ show val

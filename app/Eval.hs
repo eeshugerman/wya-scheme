@@ -102,7 +102,6 @@ callableSpec name closure params varParam body =
         symbolToString :: SchemeVal -> Either SchemeError String
         symbolToString = \case
           SSymbol val -> return val
-          -- TODO: better error message
           _ -> throwError $ BadForm "Invalid procedure definition"
                                     (SList $ SSymbol name : params)
 
@@ -261,4 +260,4 @@ eval env (SList (procExpr:args)) =
       evaledArgs <- mapM (eval env) args
       apply proc' evaledArgs
 
-eval _ form = throwError $ BadForm "LEARN 2 CODE!!1!" form
+eval _ form = throwError $ BadForm "Invalid form:" form

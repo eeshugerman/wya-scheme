@@ -9,11 +9,7 @@ import Parser (readExpr, readExprs)
 import Primitives (primitives, ioPrimitives)
 import Env (extendWith, nullEnv)
 import Eval (eval)
-import Types
-  ( Env
-  , SchemeVal
-  , SchemeValOrError
-  )
+import Types (Env, SchemeValOrError)
 
 
 primitiveEnv :: IO Env
@@ -52,13 +48,10 @@ evalFile filename = do
   env <- primitiveEnv
   case readExprs filename contents of
     Left err -> print err
-    Right exprs -> mapM_ (evalAndPrint env) exprs
-  where
-    evalAndPrint :: Env -> SchemeVal -> IO ()
-    evalAndPrint env expr =
-      runExceptT (eval env expr) >>= \case
-        Left err -> print err  -- TODO: stop evaluation
-        Right _  -> return ()
+    Right exprs ->
+      runExceptT (mapM_ (eval env) exprs) >>= \case
+        Left err -> print err
+        Right _ -> return ()
 
 
 main :: IO ()
