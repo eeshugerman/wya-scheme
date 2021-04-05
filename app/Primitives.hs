@@ -144,10 +144,6 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("*",         numericFoldableOp (*))
   , ("/",         numericFoldableOp (/))
 
-  -- , ("mod",       numericFoldableOp mod)
-  -- , ("quotient",  numericFoldableOp quot)
-  -- , ("remainder", numericFoldableOp rem)
-
   , ("=",           numEqBoolBinOp (==))
   , ("/=",          numEqBoolBinOp (/=))
   , ("<",           numOrdBoolBinOp (<))
@@ -364,6 +360,12 @@ cons args                         = throwError $ NumArgs 2 args
 -- equality
 -----------------------------------------
 
+-- r7rs permits an eq? more sensitive than eqv? (ie it may
+-- return #f in some cases where eq? would return #t), but
+-- it also permits eq? = eqv?
+eq :: [SchemeVal] -> SchemeValOrError
+eq = eqv
+
 _eqv :: SchemeVal -> SchemeVal -> Bool
 _eqv a b = case (a, b) of
  (SSymbol a',      SSymbol b') -> a' == b'
@@ -378,22 +380,24 @@ _eqv a b = case (a, b) of
      (SComplex a'',  SComplex b'')  -> a'' == b''
      (_, _)                         -> False
 
- (SList [], SList []) -> True
- (SList _,  SList _) -> notImplemented  -- TODO: loc a' == loc' b
- (SProc {}, SProc {}) -> notImplemented  -- TODO: loc a' == loc' b
+ -- (SList a' _,           SList b' _)          -> a' == b'
+ -- (SVector a' _,         SVector b' _)        -> a' == b'
+ -- (SDottedList a' _,     SDottedList b' _)    -> a' == b'
+
+ -- (SPort a',           SPort b)          -> a' == b'
+
+ -- (SPrimativeProc a' _,  SPrimativeProc b' _) -> a' == b'
+ -- (SIOProc a' _,         SIOProc b' _)        -> a' == b'
+
+ (SProc a' _,           SProc b' _)          -> a' == b'
+ (SMacro a' _,          SMacro b' _)         -> a' == b'
 
  (_, _) -> False
- where notImplemented  = error "not implemented"
 
 
 eqv :: [SchemeVal] -> SchemeValOrError
 eqv [a, b]         = return $ SBool $ _eqv a b
 eqv args           = throwError $ NumArgs 2 args
-
--- r7rs permits an eq? more sensitive than eqv? for
--- performance gains, but it also permits eq? = eqv?
-eq :: [SchemeVal] -> SchemeValOrError
-eq = eqv
 
 _equal :: SchemeVal -> SchemeVal -> Bool
 _equal a b = case (a, b) of

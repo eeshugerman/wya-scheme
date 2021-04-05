@@ -16,6 +16,7 @@ import Types
   )
 import Env (getVar , defineVar , setVar, extendWith)
 import Parser (readExprs)
+import Data.Unique as U
 
 
 ---------------------------------------------------------------------------------
@@ -110,7 +111,7 @@ apply :: SchemeVal -> [SchemeVal] -> IOSchemeValOrError
 apply (SPrimativeProc proc') args = liftThrows $ proc' args
 apply (SIOProc proc') args = proc' args
 
-apply (SProc CallableSpec {..}) args = let
+apply (SProc _ CallableSpec {..}) args = let
   numParams' = length cParams
   numParams  = toInteger numParams'
   numArgs    = toInteger $ length args
@@ -194,12 +195,14 @@ eval env (Quasiquote val)      = evalQuasiquoted env val
 eval _   (Unquote val)         = throwError $ negativeQqDepth val
 eval _   (UnquoteSplicing val) = throwError $ negativeQqDepth val
 
-eval env (Lambda params body) =
-  liftThrows $ SProc <$> callableSpec
+eval env (Lambda params body) = do
+  tag <- liftIO U.newUnique
+  liftThrows $ SProc tag <$> callableSpec
     "<lambda>" env params Nothing body
 
-eval env (VariadicLambda params varParam body) =
-  liftThrows $ SProc <$> callableSpec
+eval env (VariadicLambda params varParam body) = do
+  tag <- liftIO U.newUnique
+  liftThrows $ SProc tag <$> callableSpec
     "<lambda>" env params (Just varParam) body
 
 eval env (SList [SSymbol "if", predicate, consq, alt]) =
@@ -218,25 +221,30 @@ eval env (SList [SSymbol "define", SSymbol varName, form]) =
      return nil
 
 eval env (ProcDef name params body) =
-  do proc' <- liftThrows $ SProc <$> callableSpec
+  do tag <- liftIO U.newUnique
+     proc' <- liftThrows $ SProc tag <$> callableSpec
        name env params Nothing body
      liftIO $ defineVar env name proc'
      return nil
 
 eval env (VariadicProcDef name params varParam body) =
-  do proc' <- liftThrows $ SProc <$> callableSpec
+  do tag <- liftIO U.newUnique
+     proc' <- liftThrows $ SProc tag <$> callableSpec
        name env params (Just varParam) body
      liftIO $ defineVar env name proc'
      return nil
 
 eval env (MacroDef name params body) =
-  do macro <- liftThrows $ SMacro <$> callableSpec
+  do tag <- liftIO U.newUnique
+     macro <- liftThrows $ SMacro tag <$> callableSpec
        name env params Nothing body
      liftIO $ defineVar env name macro
      return nil
 
 eval env (VariadicMacroDef name params varParam body) =
-  do macro <- liftThrows $ SMacro <$> callableSpec
+  do
+     tag <- liftIO U.newUnique
+     macro <- liftThrows $ SMacro tag <$> callableSpec
        name env params (Just varParam) body
      liftIO $ defineVar env name macro
      return nil
@@ -253,8 +261,8 @@ eval env (SList [SSymbol "load",  val]) = case val of
 
 eval env (SList (procExpr:args)) =
   eval env procExpr >>= \case
-    SMacro transformer -> do
-      form <- apply (SProc transformer) args
+    SMacro tag transformer -> do
+      form <- apply (SProc tag transformer) args
       eval env form
     proc' -> do
       evaledArgs <- mapM (eval env) args

@@ -34,6 +34,7 @@ import GHC.IO.Handle (Handle)
 import Data.Ratio (numerator, denominator, (%))
 import Data.Complex (Complex, Complex((:+)), conjugate)
 import qualified Data.Map.Strict as Map
+import Data.Unique as U
 
 {- naming convention:
      SchemeFoo   | a type and (sometimes) its constructor
@@ -67,20 +68,22 @@ data CallableSpec
   , cBody      :: [SchemeVal]
   }
 
+type LocationTag = U.Unique
+
 data SchemeVal
-  = SSymbol String
-  | SBool Bool
-  | SChar Char
-  | SString String
-  | SchemeNumber SchemeNumber
-  | SList [SchemeVal]
-  | SVector (A.Array Int SchemeVal)
-  | SDottedList [SchemeVal] SchemeVal
-  | SPort Handle
+  = SSymbol        String
+  | SBool          Bool
+  | SChar          Char
+  | SString        String
+  | SchemeNumber   SchemeNumber
+  | SList          [SchemeVal]
+  | SVector        (A.Array Int SchemeVal)
+  | SDottedList    [SchemeVal] SchemeVal
+  | SPort          Handle
   | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
-  | SIOProc ([SchemeVal] -> IOSchemeValOrError)
-  | SProc CallableSpec
-  | SMacro CallableSpec
+  | SIOProc        ([SchemeVal] -> IOSchemeValOrError)
+  | SProc          LocationTag CallableSpec
+  | SMacro         LocationTag CallableSpec
 
 data SchemeError
   = NumArgs Integer [SchemeVal]
@@ -326,7 +329,7 @@ instance Show SchemeVal where
     SPrimativeProc _      -> "<primitive>"
     SIOProc _             -> "<IO primitive>"
     SMacro {}             -> "<macro>"
-    SProc CallableSpec {cParams=params, cVarParam=varParam} ->
+    SProc _ CallableSpec {cParams=params, cVarParam=varParam} ->
       "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
       where
         showVarArgs = case varParam of

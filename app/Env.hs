@@ -42,7 +42,8 @@ defineVar envRef varName val = do
   case Map.lookup varName envMap of
     Nothing -> do
       varRef <- newIORef val
-      liftIO $ writeIORef envRef (Map.insert varName varRef envMap)
+      let newEnvMap = Map.insert varName varRef envMap
+      liftIO $ writeIORef envRef newEnvMap
     Just varRef -> writeIORef varRef val
 
 extendWith :: [(String, SchemeVal)] -> Env -> IO Env
