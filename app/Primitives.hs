@@ -360,44 +360,35 @@ cons args                         = throwError $ NumArgs 2 args
 -- equality
 -----------------------------------------
 
--- r7rs permits an eq? more sensitive than eqv? (ie it may
--- return #f in some cases where eq? would return #t), but
--- it also permits eq? = eqv?
+-- ... a most unpermissive eq?
+_eq :: SchemeVal -> SchemeVal -> Bool
+_eq (SchemeVal (Just tagA) _) (SchemeVal (Just tagB) _) = tagA == tagB
+_eq _ _ = False
+
 eq :: [SchemeVal] -> SchemeValOrError
-eq = eqv
+eq [a, b] = return $ SBool $ _eq a b
+eq args   = throwError $ NumArgs 2 args
 
 _eqv :: SchemeVal -> SchemeVal -> Bool
 _eqv a b = case (a, b) of
- (SSymbol a',      SSymbol b') -> a' == b'
- (SChar a',        SChar b')   -> a' == b'
- (SString a',      SString b') -> a' == b'
- (SBool a',        SBool b')   -> a' == b'
- (SchemeNumber a', SchemeNumber b') ->
-   case (a', b') of
-     (SInteger a'',  SInteger b'')  -> a'' == b''
-     (SRational a'', SRational b'') -> a'' == b''
-     (SReal a'',     SReal b'')     -> a'' == b''
-     (SComplex a'',  SComplex b'')  -> a'' == b''
-     (_, _)                         -> False
+  (SSymbol a',      SSymbol b') -> a' == b'
+  (SChar a',        SChar b')   -> a' == b'
+  (SString a',      SString b') -> a' == b'
+  (SBool a',        SBool b')   -> a' == b'
+  (SchemeNumber a', SchemeNumber b') ->
+    case (a', b') of
+      (SInteger a'',  SInteger b'')  -> a'' == b''
+      (SRational a'', SRational b'') -> a'' == b''
+      (SReal a'',     SReal b'')     -> a'' == b''
+      (SComplex a'',  SComplex b'')  -> a'' == b''
+      (_, _)                         -> False
 
- -- (SList a' _,           SList b' _)          -> a' == b'
- -- (SVector a' _,         SVector b' _)        -> a' == b'
- -- (SDottedList a' _,     SDottedList b' _)    -> a' == b'
-
- -- (SPort a',           SPort b)          -> a' == b'
-
- -- (SPrimativeProc a' _,  SPrimativeProc b' _) -> a' == b'
- -- (SIOProc a' _,         SIOProc b' _)        -> a' == b'
-
- (SProc a' _,           SProc b' _)          -> a' == b'
- (SMacro a' _,          SMacro b' _)         -> a' == b'
-
- (_, _) -> False
+  (a', b') -> _eq a' b'
 
 
 eqv :: [SchemeVal] -> SchemeValOrError
-eqv [a, b]         = return $ SBool $ _eqv a b
-eqv args           = throwError $ NumArgs 2 args
+eqv [a, b] = return $ SBool $ _eqv a b
+eqv args   = throwError $ NumArgs 2 args
 
 _equal :: SchemeVal -> SchemeVal -> Bool
 _equal a b = case (a, b) of

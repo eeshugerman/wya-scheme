@@ -11,8 +11,22 @@ module Types
     , SReal
     , SComplex
     )
+  , SchemeVal'(..)
   , SchemeVal
     ( ..
+    , SSymbol
+    , SBool
+    , SChar
+    , SString
+    , SchemeNumber
+    , SList
+    , SVector
+    , SDottedList
+    , SPort
+    , SPrimativeProc
+    , SIOProc
+    , SProc
+    , SMacro
     , Quote
     , Quasiquote
     , Unquote
@@ -26,7 +40,6 @@ module Types
   , CallableSpec (..)
   ) where
 
-import Data.IORef
 import qualified Data.Array as A
 import Text.Parsec (ParseError)
 import Control.Monad.Except (ExceptT)
@@ -35,6 +48,7 @@ import Data.Ratio (numerator, denominator, (%))
 import Data.Complex (Complex, Complex((:+)), conjugate)
 import qualified Data.Map.Strict as Map
 import Data.Unique as U
+import Data.IORef (IORef)
 
 {- naming convention:
      SchemeFoo   | a type and (sometimes) its constructor
@@ -68,29 +82,31 @@ data CallableSpec
   , cBody      :: [SchemeVal]
   }
 
-type LocationTag = U.Unique
+type LocationTag = Maybe U.Unique
 
-data SchemeVal
-  = SSymbol        String
-  | SBool          Bool
-  | SChar          Char
-  | SString        String
-  | SchemeNumber   SchemeNumber
-  | SList          [SchemeVal]
-  | SVector        (A.Array Int SchemeVal)
-  | SDottedList    [SchemeVal] SchemeVal
-  | SPort          Handle
-  | SPrimativeProc ([SchemeVal] -> SchemeValOrError)
-  | SIOProc        ([SchemeVal] -> IOSchemeValOrError)
-  | SProc          LocationTag CallableSpec
-  | SMacro         LocationTag CallableSpec
+data SchemeVal'
+  = SSymbol'        String
+  | SBool'          Bool
+  | SChar'          Char
+  | SString'        String
+  | SchemeNumber'   SchemeNumber
+  | SList'          [SchemeVal]
+  | SVector'        (A.Array Int SchemeVal)
+  | SDottedList'    [SchemeVal] SchemeVal
+  | SPort'          Handle
+  | SPrimativeProc' ([SchemeVal] -> SchemeValOrError)
+  | SIOProc'        ([SchemeVal] -> IOSchemeValOrError)
+  | SProc'          CallableSpec
+  | SMacro'         CallableSpec
+
+data SchemeVal = SchemeVal LocationTag SchemeVal'
 
 data SchemeError
-  = NumArgs Integer [SchemeVal]
+  = NumArgs      Integer [SchemeVal]
   | TypeMismatch String SchemeVal
-  | ParseError ParseError
-  | BadForm String SchemeVal
-  | UnboundVar String
+  | ParseError   ParseError
+  | BadForm      String SchemeVal
+  | UnboundVar   String
 
 type SchemeValOrError = Either SchemeError SchemeVal
 type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
@@ -101,6 +117,63 @@ type Env = IORef (Map.Map String (IORef SchemeVal))
 ---------------------------------------------------------------------------------
 -- patterns
 ---------------------------------------------------------------------------------
+
+pattern SSymbol :: String -> SchemeVal
+pattern SSymbol val <- SchemeVal _ (SSymbol' val)
+  where SSymbol val = SchemeVal Nothing (SSymbol' val)
+
+pattern SBool :: Bool -> SchemeVal
+pattern SBool val <- SchemeVal _ (SBool' val)
+  where SBool val = SchemeVal Nothing (SBool' val)
+
+pattern SChar :: Char -> SchemeVal
+pattern SChar val <- SchemeVal _ (SChar' val)
+  where SChar val = SchemeVal Nothing (SChar' val)
+
+pattern SString :: String -> SchemeVal
+pattern SString val <- SchemeVal _ (SString' val)
+  where SString val = SchemeVal Nothing (SString' val)
+
+pattern SchemeNumber :: SchemeNumber -> SchemeVal
+pattern SchemeNumber val <- SchemeVal _ (SchemeNumber' val)
+  where SchemeNumber val = SchemeVal Nothing (SchemeNumber' val)
+
+pattern SList :: [SchemeVal] -> SchemeVal
+pattern SList val <- SchemeVal _ (SList' val)
+  where SList val = SchemeVal Nothing (SList' val)
+
+pattern SVector :: A.Array Int SchemeVal -> SchemeVal
+pattern SVector val <- SchemeVal _ (SVector' val)
+  where SVector val = SchemeVal Nothing (SVector' val)
+
+pattern SDottedList :: [SchemeVal] -> SchemeVal -> SchemeVal
+pattern SDottedList bleep bloop <- SchemeVal _ (SDottedList' bleep bloop)
+  where SDottedList bleep bloop = SchemeVal Nothing (SDottedList' bleep bloop)
+
+pattern SPort :: Handle -> SchemeVal
+pattern SPort val <- SchemeVal _ (SPort' val)
+  where SPort val = SchemeVal Nothing (SPort' val)
+
+pattern SPrimativeProc :: ([SchemeVal] -> SchemeValOrError) -> SchemeVal
+pattern SPrimativeProc val <- SchemeVal _ (SPrimativeProc' val)
+  where SPrimativeProc val = SchemeVal Nothing (SPrimativeProc' val)
+
+pattern SIOProc :: ([SchemeVal] -> IOSchemeValOrError) -> SchemeVal
+pattern SIOProc val <- SchemeVal _ (SIOProc' val)
+  where SIOProc val = SchemeVal Nothing (SIOProc' val)
+
+pattern SProc :: CallableSpec -> SchemeVal
+pattern SProc val <- SchemeVal _ (SProc' val)
+  where SProc val = SchemeVal Nothing (SProc' val)
+
+pattern SMacro :: CallableSpec -> SchemeVal
+pattern SMacro val <- SchemeVal _ (SMacro' val)
+  where SMacro val = SchemeVal Nothing (SMacro' val)
+
+{-# COMPLETE SSymbol, SBool, SChar, SString, SchemeNumber,
+             SList, SVector, SDottedList,
+             SPort,
+             SPrimativeProc, SIOProc, SProc, SMacro #-}
 
 -- numbers
 pattern SComplex :: Complex SchemeReal -> SchemeNumber
@@ -329,12 +402,12 @@ instance Show SchemeVal where
     SPrimativeProc _      -> "<primitive>"
     SIOProc _             -> "<IO primitive>"
     SMacro {}             -> "<macro>"
-    SProc _ CallableSpec {cParams=params, cVarParam=varParam} ->
+    SProc CallableSpec {cParams=params, cVarParam=varParam} ->
       "(lambda (" ++ unwords params ++ showVarArgs ++ ") ...)"
       where
         showVarArgs = case varParam of
           Nothing -> ""
-          Just val  -> ". " ++ val
+          Just val  -> " . " ++ val
 
 
 ---- SchemeError ----
