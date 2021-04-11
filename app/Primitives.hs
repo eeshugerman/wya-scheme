@@ -22,9 +22,9 @@ import Parser (readExprWithPos)
 ioPrimitives :: [(String, SchemeVal)]
 ioPrimitives =
   map (Data.Bifunctor.second SPrimativeProc)
-  [ ("get-current-input-port",  getPortProc currentInputHdl)
-  , ("get-current-output-port", getPortProc currentOutputHdl)
-  , ("get-current-error-port",  getPortProc currentErrorHdl)
+  [ ("current-input-port",  getPortProc currentInputHdl)
+  , ("current-output-port", getPortProc currentOutputHdl)
+  , ("current-error-port",  getPortProc currentErrorHdl)
   ]
   ++
   map (Data.Bifunctor.second SIOProc)
@@ -43,7 +43,7 @@ ioPrimitives =
   , ("write-string",       writeString)
   ]
 
--- TODO: these should be user-overridable
+-- TODO: these should be user-overridable (preferably as r7rs parameters)
 currentInputHdl :: IO.Handle
 currentInputHdl = IO.stdin
 

@@ -71,7 +71,7 @@ newtype SchemeComplex = SComplex' (Complex SchemeReal)
 
 -- TODO: #e / #i
 data SchemeNumber
-  = SchemeReal SchemeReal
+  = SchemeReal    SchemeReal
   | SchemeComplex SchemeComplex
 
 data CallableSpec
@@ -108,9 +108,9 @@ data SchemeError
   | BadForm      String SchemeVal
   | UnboundVar   String
 
-type SchemeValOrError = Either SchemeError SchemeVal
+type SchemeValOrError   = Either SchemeError SchemeVal
 type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
-type IONilOrError = ExceptT SchemeError IO ()
+type IONilOrError       = ExceptT SchemeError IO ()
 
 type Env = IORef (Map.Map String (IORef SchemeVal))
 

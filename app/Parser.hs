@@ -17,6 +17,8 @@ import Types
 import Control.Monad.Except (throwError)
 import Data.Ratio ((%))
 
+-- TODO: use Parsec's lexer/tokenizer
+-- TODO: use Attoparsec, for incremental parsing? see `read` primative
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
 
 data Sign = Plus | Minus
@@ -54,7 +56,7 @@ parseBool = P.try $ do
 parseCharacter :: P.Parser SchemeVal
 parseCharacter = let
   prefix = P.try $ P.string "#\\"
-  namedChar name val =  P.try $ P.string name >> return val
+  namedChar name val = P.try $ P.string name >> return val
   charName = P.choice
     [ namedChar "space"   ' '
     , namedChar "newline" '\n'
@@ -93,7 +95,8 @@ parseSign = do
     ]
 
 applySign :: (Num a) => Sign -> a -> a
-applySign sign mag = case sign of {Plus ->  mag; Minus -> -mag}
+applySign Plus  mag = mag
+applySign Minus mag = -mag
 
 parseInteger :: P.Parser SchemeReal
 parseInteger = P.try $ do
