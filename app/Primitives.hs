@@ -152,16 +152,19 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("<=",          numOrdBoolBinOp (<=))
 
   , ("symbol?",      isTypeOp isSymbol)
-  , ("boolean?",     isTypeOp isBoolean)
-  , ("character?",   isTypeOp isCharacter)
+  , ("boolean?",     isTypeOp isBool)
+  , ("character?",   isTypeOp isChar)
   , ("string?",      isTypeOp isString)
-  , ("list?",        isTypeOp isList)
-  , ("vector?",      isTypeOp isVector)
   , ("number?",      isNumTypeOp isNumber)
   , ("complex?",     isNumTypeOp isComplex)
   , ("real?",        isNumTypeOp isReal)
   , ("rational?",    isNumTypeOp isRational)
   , ("integer?",     isNumTypeOp isInteger)
+  , ("list?",        isTypeOp isList)
+  , ("vector?",      isTypeOp isVector)
+  , ("pair?",        isTypeOp isPair)
+  , ("port?",        isTypeOp isPort)
+  , ("procedure?",   isTypeOp isProcedure)
 
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
@@ -273,26 +276,19 @@ isSymbol :: SchemeVal -> Bool
 isSymbol (SSymbol _) = True
 isSymbol _           = False
 
-isBoolean :: SchemeVal -> Bool
-isBoolean (SBool _) = True
-isBoolean _         = False
+isBool :: SchemeVal -> Bool
+isBool (SBool _) = True
+isBool _         = False
 
-isCharacter :: SchemeVal -> Bool
-isCharacter (SChar _) = True
-isCharacter _         = False
+isChar :: SchemeVal -> Bool
+isChar (SChar _) = True
+isChar _         = False
 
 isString :: SchemeVal -> Bool
 isString (SString _) = True
 isString _           = False
 
-isList :: SchemeVal -> Bool
-isList (SList _) = True
-isList _         = False
-
-isVector :: SchemeVal -> Bool
-isVector (SVector _) = True
-isVector _           = False
-
+-- numbers
 isNumber :: SchemeNumber -> Bool
 isNumber = const True
 
@@ -311,6 +307,30 @@ isInteger :: SchemeNumber -> Bool
 isInteger (SRational _) = False
 isInteger val           = isRational val
 
+-- end numbers
+
+isList :: SchemeVal -> Bool
+isList (SList _) = True
+isList _         = False
+
+isVector :: SchemeVal -> Bool
+isVector (SVector _) = True
+isVector _           = False
+
+isPair :: SchemeVal -> Bool
+isPair (SList _)         = True
+isPair (SDottedList _ _) = True
+isPair _                 = False
+
+isPort :: SchemeVal -> Bool
+isPort (SPort _) = True
+isPort _         = False
+
+isProcedure :: SchemeVal -> Bool
+isProcedure (SPrimativeProc _) = True
+isProcedure (SIOProc _)        = True
+isProcedure (SProc _)          = True
+isProcedure _                  = False
 
 -----------------------------------------
 -- type conversion
