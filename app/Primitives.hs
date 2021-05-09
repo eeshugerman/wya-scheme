@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Primitives ( primitives ,ioPrimitives) where
+module Primitives ( primitives ) where
 
 import qualified Data.Bifunctor
 import qualified System.IO as IO
@@ -17,125 +17,6 @@ import Types
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
-
-
-ioPrimitives :: [(String, SchemeVal)]
-ioPrimitives =
-  map (Data.Bifunctor.second SPrimativeProc)
-  [ ("current-input-port",  getPortProc currentInputHdl)
-  , ("current-output-port", getPortProc currentOutputHdl)
-  , ("current-error-port",  getPortProc currentErrorHdl)
-  ]
-  ++
-  map (Data.Bifunctor.second SIOProc)
-  [ ("apply",              wrappedApply)
-
-  , ("open-input-file",    makePort IO.ReadMode)
-  , ("open-output-file",   makePort IO.WriteMode)
-  , ("close-input-file",   closePort)
-  , ("close-output-file",  closePort)
-
-  , ("read-char",          readChar)
-  , ("peek-char",          peekChar)
-  , ("read",               read_)
-
-  , ("write",              write)
-  , ("write-string",       writeString)
-  ]
-
--- TODO: these should be user-overridable (preferably as r7rs parameters)
-currentInputHdl :: IO.Handle
-currentInputHdl = IO.stdin
-
-currentOutputHdl :: IO.Handle
-currentOutputHdl = IO.stdout
-
-currentErrorHdl :: IO.Handle
-currentErrorHdl = IO.stderr
-
-getPortProc :: IO.Handle -> ([SchemeVal] -> SchemeValOrError)
-getPortProc port = \case
-  []   -> return $ SPort port
-  args -> throwError $ NumArgs 0 args
-
-wrappedApply :: [SchemeVal] -> IOSchemeValOrError
-wrappedApply [proc', SList args] = apply proc' args
-wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
-wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
-
-makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
-makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
-makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
-makePort _    badArgs            = throwError $ NumArgs 1 badArgs
-
-closePort :: [SchemeVal] -> IOSchemeValOrError
-closePort [SPort handle] = liftIO $ IO.hClose handle >> return (SList [])
-closePort [nonPort]      = throwError $ TypeMismatch "port" nonPort
-closePort badArgs        = throwError $ NumArgs 1 badArgs
-
-_inputPortProc
-  :: (IO.Handle -> IO SchemeVal)
-  -> ([SchemeVal] -> IOSchemeValOrError)
-_inputPortProc f = \case
-  []             -> liftIO $ f currentInputHdl
-  [SPort handle] -> liftIO $ f handle
-  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
-  badArgs        -> throwError $ NumArgs 2 badArgs
-
-_outputPortProc
-  :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
-  -> ([SchemeVal] -> IOSchemeValOrError)
-_outputPortProc f = \case
-  [val]               -> f currentOutputHdl val >> return (SList [])
-  [val, SPort handle] -> f handle val >> return (SList [])
-  [_, nonPort]        -> throwError $ TypeMismatch "port" nonPort
-  badArgs             -> throwError $ NumArgs 2 badArgs
-
-readChar :: [SchemeVal] -> IOSchemeValOrError
-readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
-
-peekChar :: [SchemeVal] -> IOSchemeValOrError
-peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
-
--- TODO: doesn't work with stdin :(
-read_ :: [SchemeVal] -> IOSchemeValOrError
-read_ = \case
-  []             -> _read currentInputHdl
-  [SPort handle] -> _read handle
-  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
-  badArgs        -> throwError $ NumArgs 1 badArgs
-  where
-    -- this is a bit gruesome, but i can't find a better way to do it with
-    -- parsec. attoparsec, on the other hand, has built-in support for
-    -- incremental parsing
-    _read :: IO.Handle  -> IOSchemeValOrError
-    _read handle = do
-      -- unfortunately there's no way around hGetContents closing the handle,
-      -- so we work with a duplicate
-      tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
-      string <- liftIO $ IO.hGetContents tempHandle
-      (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
-      liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
-      liftIO $ IO.hClose tempHandle
-      return parsed
-
-    posToBytes :: Parsec.SourcePos -> String -> Integer
-    posToBytes pos source = let
-      precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
-      in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
-
-writeString :: [SchemeVal] -> IOSchemeValOrError
-writeString = _outputPortProc $ \handle val -> case val of
-  SString string ->
-    liftIO $ IO.hPutStr handle string >>
-    return (SList [])
-  nonString -> throwError $ TypeMismatch "string" nonString
-
-write :: [SchemeVal] -> IOSchemeValOrError
-write = _outputPortProc $ \handle val ->
-    liftIO $ IO.hPutStr handle (show val) >>
-    return (SList [])
-
 
 primitives :: [(String, SchemeVal)]
 primitives = map (Data.Bifunctor.second SPrimativeProc)
@@ -184,6 +65,28 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("eqv?",        eqv)
   , ("eq?",         eq)
   , ("equal?",      equal)
+  ]
+  ++
+  map (Data.Bifunctor.second SPrimativeProc)
+  [ ("current-input-port",  getPortProc currentInputHdl)
+  , ("current-output-port", getPortProc currentOutputHdl)
+  , ("current-error-port",  getPortProc currentErrorHdl)
+  ]
+  ++
+  map (Data.Bifunctor.second SIOProc)
+  [ ("apply",              wrappedApply)
+
+  , ("open-input-file",    makePort IO.ReadMode)
+  , ("open-output-file",   makePort IO.WriteMode)
+  , ("close-input-file",   closePort)
+  , ("close-output-file",  closePort)
+
+  , ("read-char",          readChar)
+  , ("peek-char",          peekChar)
+  , ("read",               read_)
+
+  , ("write",              write)
+  , ("write-string",       writeString)
   ]
 
 ------------------------------------------
@@ -425,3 +328,100 @@ _equal a b = case (a, b) of
 equal :: [SchemeVal] -> SchemeValOrError
 equal [a, b]            = return $ SBool $ _equal a b
 equal args              = throwError $ NumArgs 2 args
+
+-----------------------------------------
+-- io
+-----------------------------------------
+-- TODO: these should be user-overridable (preferably as r7rs parameters)
+currentInputHdl :: IO.Handle
+currentInputHdl = IO.stdin
+
+currentOutputHdl :: IO.Handle
+currentOutputHdl = IO.stdout
+
+currentErrorHdl :: IO.Handle
+currentErrorHdl = IO.stderr
+
+getPortProc :: IO.Handle -> ([SchemeVal] -> SchemeValOrError)
+getPortProc port = \case
+  []   -> return $ SPort port
+  args -> throwError $ NumArgs 0 args
+
+wrappedApply :: [SchemeVal] -> IOSchemeValOrError
+wrappedApply [proc', SList args] = apply proc' args
+wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
+wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
+
+makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
+makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
+makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
+makePort _    badArgs            = throwError $ NumArgs 1 badArgs
+
+closePort :: [SchemeVal] -> IOSchemeValOrError
+closePort [SPort handle] = liftIO $ IO.hClose handle >> return (SList [])
+closePort [nonPort]      = throwError $ TypeMismatch "port" nonPort
+closePort badArgs        = throwError $ NumArgs 1 badArgs
+
+_inputPortProc
+  :: (IO.Handle -> IO SchemeVal)
+  -> ([SchemeVal] -> IOSchemeValOrError)
+_inputPortProc f = \case
+  []             -> liftIO $ f currentInputHdl
+  [SPort handle] -> liftIO $ f handle
+  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
+  badArgs        -> throwError $ NumArgs 2 badArgs
+
+_outputPortProc
+  :: (IO.Handle -> SchemeVal -> IOSchemeValOrError)
+  -> ([SchemeVal] -> IOSchemeValOrError)
+_outputPortProc f = \case
+  [val]               -> f currentOutputHdl val >> return (SList [])
+  [val, SPort handle] -> f handle val >> return (SList [])
+  [_, nonPort]        -> throwError $ TypeMismatch "port" nonPort
+  badArgs             -> throwError $ NumArgs 2 badArgs
+
+readChar :: [SchemeVal] -> IOSchemeValOrError
+readChar = _inputPortProc $ \handle -> IO.hGetChar handle <&> SChar
+
+peekChar :: [SchemeVal] -> IOSchemeValOrError
+peekChar = _inputPortProc $ \handle -> IO.hLookAhead handle <&> SChar
+
+-- TODO: doesn't work with stdin :(
+read_ :: [SchemeVal] -> IOSchemeValOrError
+read_ = \case
+  []             -> _read currentInputHdl
+  [SPort handle] -> _read handle
+  [nonPort]      -> throwError $ TypeMismatch "port" nonPort
+  badArgs        -> throwError $ NumArgs 1 badArgs
+  where
+    -- this is a bit gruesome, but i can't find a better way to do it with
+    -- parsec. attoparsec, on the other hand, has built-in support for
+    -- incremental parsing
+    _read :: IO.Handle  -> IOSchemeValOrError
+    _read handle = do
+      -- unfortunately there's no way around hGetContents closing the handle,
+      -- so we work with a duplicate
+      tempHandle <- liftIO $ GHC.IO.Handle.hDuplicate handle
+      string <- liftIO $ IO.hGetContents tempHandle
+      (pos, parsed) <- liftThrows $ readExprWithPos (show handle) string
+      liftIO $ IO.hSeek handle IO.AbsoluteSeek (posToBytes pos string)
+      liftIO $ IO.hClose tempHandle
+      return parsed
+
+    posToBytes :: Parsec.SourcePos -> String -> Integer
+    posToBytes pos source = let
+      precedingLines = take (Parsec.sourceLine pos - 1) (lines source)
+      in fromIntegral $ length (unlines precedingLines) + Parsec.sourceColumn pos
+
+writeString :: [SchemeVal] -> IOSchemeValOrError
+writeString = _outputPortProc $ \handle val -> case val of
+  SString string ->
+    liftIO $ IO.hPutStr handle string >>
+    return (SList [])
+  nonString -> throwError $ TypeMismatch "string" nonString
+
+write :: [SchemeVal] -> IOSchemeValOrError
+write = _outputPortProc $ \handle val ->
+    liftIO $ IO.hPutStr handle (show val) >>
+    return (SList [])
+

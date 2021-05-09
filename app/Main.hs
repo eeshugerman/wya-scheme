@@ -6,16 +6,14 @@ import Control.Monad.Except (runExceptT)
 import Data.Functor ((<&>))
 
 import Parser (readExpr, readExprs)
-import Primitives (primitives, ioPrimitives)
+import Primitives (primitives)
 import Env (extendWith, nullEnv)
 import Eval (eval)
 import Types (Env, SchemeValOrError)
 
 
 primitiveEnv :: IO Env
-primitiveEnv = nullEnv
-  >>= extendWith primitives
-  >>= extendWith ioPrimitives
+primitiveEnv = nullEnv >>= extendWith primitives
 
 runRepl :: IO ()
 runRepl = do
