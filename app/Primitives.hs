@@ -65,6 +65,12 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("eqv?",        eqv)
   , ("eq?",         eq)
   , ("equal?",      equal)
+
+  , ("num-args-error",      numArgsError)
+  , ("type-mismatch-error", typeMismatchError)
+  , ("bad-form-error",      badFormError)
+  , ("unbound-var-error",   unboundVarError)
+  , ("raise",               raise)
   ]
   ++
   map (Data.Bifunctor.second SPrimativeProc)
@@ -328,6 +334,47 @@ _equal a b = case (a, b) of
 equal :: [SchemeVal] -> SchemeValOrError
 equal [a, b]            = return $ SBool $ _equal a b
 equal args              = throwError $ NumArgs 2 args
+
+-----------------------------------------
+-- exceptions
+-----------------------------------------
+numArgsError :: [SchemeVal] -> SchemeValOrError
+numArgsError = \case
+  [SchemeNumber (SInteger expected), SList found]->
+    return $ SError $ NumArgs expected found
+  [SchemeNumber (SInteger _), badArg]->
+    throwError $ TypeMismatch "list" badArg
+  [badArg, _]->
+    throwError $ TypeMismatch "integer" badArg
+  badArgs -> throwError $ NumArgs 2 badArgs
+
+typeMismatchError :: [SchemeVal] -> SchemeValOrError
+typeMismatchError = \case
+  [SString msg, found] -> return $ SError $ TypeMismatch msg found
+  [badArg, _] -> throwError $ TypeMismatch "string" badArg
+  badArgs -> throwError $ NumArgs 2 badArgs
+
+-- parseError :: [SchemeVal] -> SchemeValOrError -- not sure about this one
+
+badFormError :: [SchemeVal] -> SchemeValOrError
+badFormError = \case
+  [SString msg, found] -> return $ SError $ BadForm msg found
+  [badArg, _] ->          throwError $ TypeMismatch "string" badArg
+  badArgs ->              throwError $ NumArgs 2 badArgs
+
+unboundVarError :: [SchemeVal] -> SchemeValOrError
+unboundVarError = \case
+  [SString varName] -> return $ SError $ UnboundVar varName
+  [badArg] ->          throwError $ TypeMismatch "string" badArg
+  badArgs ->           throwError  $ NumArgs 1 badArgs
+
+raise :: [SchemeVal] -> SchemeValOrError
+raise = \case
+  [SError err] -> throwError err
+  [badArg] -> throwError $ TypeMismatch "error" badArg
+  badArgs -> throwError $ NumArgs 1 badArgs
+
+
 
 -----------------------------------------
 -- io

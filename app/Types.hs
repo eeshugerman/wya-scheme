@@ -27,6 +27,7 @@ module Types
     , SIOProc
     , SProc
     , SMacro
+    , SError
     , Quote
     , Quasiquote
     , Unquote
@@ -98,6 +99,7 @@ data SchemeVal'
   | SIOProc'        ([SchemeVal] -> IOSchemeValOrError)
   | SProc'          CallableSpec
   | SMacro'         CallableSpec
+  | SError'         SchemeError
 
 data SchemeVal = SchemeVal LocationTag SchemeVal'
 
@@ -170,10 +172,15 @@ pattern SMacro :: CallableSpec -> SchemeVal
 pattern SMacro val <- SchemeVal _ (SMacro' val)
   where SMacro val = SchemeVal Nothing (SMacro' val)
 
+pattern SError :: SchemeError -> SchemeVal
+pattern SError val <- SchemeVal _ (SError' val)
+  where SError val = SchemeVal Nothing (SError' val)
+
 {-# COMPLETE SSymbol, SBool, SChar, SString, SchemeNumber,
              SList, SVector, SDottedList,
              SPort,
-             SPrimativeProc, SIOProc, SProc, SMacro #-}
+             SPrimativeProc, SIOProc, SProc, SMacro,
+             SError #-}
 
 -- numbers
 pattern SComplex :: Complex SchemeReal -> SchemeNumber
@@ -408,6 +415,7 @@ instance Show SchemeVal where
         showVarArgs = case varParam of
           Nothing -> ""
           Just val  -> " . " ++ val
+    SError err -> "<" ++ show err ++ ">"
 
 
 ---- SchemeError ----
