@@ -10,27 +10,32 @@ import qualified Text.Parsec.Pos as Parsec
 
 import Types
   ( IOSchemeValOrError
+  , SchemeReal
   , SchemeNumber (..)
   , SchemeVal (..)
   , SchemeError (..)
-  , SchemeValOrError, SchemeReal
+  , SchemeValOrError
   )
 import Eval (apply, liftThrows)
 import Parser (readExprWithPos)
 
+
 primitives :: [(String, SchemeVal)]
 primitives = map (Data.Bifunctor.second SPrimativeProc)
-  [ ("+",         numericFoldableOp (+))
-  , ("-",         numericFoldableOp (-))
-  , ("*",         numericFoldableOp (*))
-  , ("/",         numericFoldableOp (/))
+  [ ("+",            numericFoldableOp (+))
+  , ("-",            numericFoldableOp (-))
+  , ("*",            numericFoldableOp (*))
+  , ("/",            numericFoldableOp (/))
+  , ("remainder",    intBinOp rem)
+  , ("modulo",       intBinOp mod)
+  , ("quotient",     intBinOp quot)
 
-  , ("=",           numEqBoolBinOp (==))
-  , ("/=",          numEqBoolBinOp (/=))
-  , ("<",           numOrdBoolBinOp (<))
-  , (">",           numOrdBoolBinOp (>))
-  , (">=",          numOrdBoolBinOp (>=))
-  , ("<=",          numOrdBoolBinOp (<=))
+  , ("=",            numEqBoolBinOp (==))
+  , ("/=",           numEqBoolBinOp (/=))
+  , ("<",            numOrdBoolBinOp (<))
+  , (">",            numOrdBoolBinOp (>))
+  , (">=",           numOrdBoolBinOp (>=))
+  , ("<=",           numOrdBoolBinOp (<=))
 
   , ("symbol?",      isTypeOp isSymbol)
   , ("boolean?",     isTypeOp isBool)
@@ -115,6 +120,17 @@ numericFoldableOp op (first:rest)   = foldlM wrappedOp first rest
     wrappedOp a                (SchemeNumber _) = throwError $ TypeMismatch "number" a
     wrappedOp (SchemeNumber _) b                = throwError $ TypeMismatch "number" b
     wrappedOp a                _                = throwError $ TypeMismatch "number" a
+
+intBinOp :: (Integer -> Integer -> Integer) -> ([SchemeVal] -> SchemeValOrError)
+intBinOp op = \case
+  [SchemeNumber (SInteger a), SchemeNumber (SInteger b)] ->
+    return $ SchemeNumber $ SInteger $ op a b
+  [SchemeNumber (SInteger _), badArg] ->
+    throwError $ TypeMismatch "integer" badArg
+  [badArg, SchemeNumber (SInteger _)] ->
+    throwError $ TypeMismatch "integer" badArg
+  badArgs ->
+    throwError $ NumArgs 2 badArgs
 
 boolBinOp
   :: (SchemeVal -> Either SchemeError a)  -- unpacker
