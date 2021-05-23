@@ -55,8 +55,8 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
 
-  , ("and",         boolBoolBinOp (&&))
-  , ("or",          boolBoolBinOp (||))
+  , ("and",         and')
+  , ("or",          or')
   , ("string=?",    strBoolBinOp (==))
   , ("string<?",    strBoolBinOp (<))
   , ("string>?",    strBoolBinOp (>))
@@ -162,13 +162,6 @@ numOrdBoolBinOp  = boolBinOp unpacker
     unpacker (SchemeNumber (SchemeReal val))  = return val
     unpacker val                              = throwError $ TypeMismatch "real" val
 
-boolBoolBinOp :: BoolBinOpBuilder Bool
-boolBoolBinOp = boolBinOp unpacker
-  where
-    unpacker :: SchemeVal -> Either SchemeError Bool
-    unpacker (SBool val) = return val
-    unpacker nonBool = throwError $ TypeMismatch "boolean" nonBool
-
 strBoolBinOp :: BoolBinOpBuilder String
 strBoolBinOp = boolBinOp unpacker
   where
@@ -192,6 +185,20 @@ isNumTypeOp test = \case
   [_]                -> return $ SBool False
   args               -> throwError $ NumArgs 1 args
 
+
+-----------------------------------------
+-- and/or
+-----------------------------------------
+and' :: [SchemeVal] -> SchemeValOrError
+and' [] = return $ SBool True
+and' (SBool False : _) = return $ SBool False
+and' [last'] = return last'
+and' (_:xs) = and' xs
+
+or' :: [SchemeVal] -> SchemeValOrError
+or' [] = return $ SBool False
+or' (SBool False : xs) = or' xs
+or' (truthy : _) = return truthy
 
 -----------------------------------------
 -- type testing
