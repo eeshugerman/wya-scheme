@@ -243,6 +243,7 @@ isVector (SVector _) = True
 isVector _           = False
 
 isPair :: SchemeVal -> Bool
+isPair (SList [])        = False
 isPair (SList _)         = True
 isPair (SDottedList _ _) = True
 isPair _                 = False
@@ -306,9 +307,11 @@ cons args                         = throwError $ NumArgs 2 args
 -----------------------------------------
 
 -- ... a most unpermissive eq?
+-- TODO: oops, this isn't spec-compliant...
 _eq :: SchemeVal -> SchemeVal -> Bool
-_eq (SchemeVal (Just tagA) _) (SchemeVal (Just tagB) _) = tagA == tagB
-_eq _ _ = False
+_eq a b = case (a, b) of
+  (SchemeVal (Just tagA) _, SchemeVal (Just tagB) _) -> tagA == tagB
+  _ -> False
 
 eq :: [SchemeVal] -> SchemeValOrError
 eq [a, b] = return $ SBool $ _eq a b
@@ -316,9 +319,9 @@ eq args   = throwError $ NumArgs 2 args
 
 _eqv :: SchemeVal -> SchemeVal -> Bool
 _eqv a b = case (a, b) of
-  (SSymbol a',      SSymbol b') -> a' == b'
   (SChar a',        SChar b')   -> a' == b'
   (SString a',      SString b') -> a' == b'
+  (SSymbol a',      SSymbol b') -> a' == b'
   (SBool a',        SBool b')   -> a' == b'
   (SchemeNumber a', SchemeNumber b') ->
     case (a', b') of
@@ -327,7 +330,7 @@ _eqv a b = case (a, b) of
       (SReal a'',     SReal b'')     -> a'' == b''
       (SComplex a'',  SComplex b'')  -> a'' == b''
       (_, _)                         -> False
-
+  (SList [], SList []) -> True
   (a', b') -> _eq a' b'
 
 
