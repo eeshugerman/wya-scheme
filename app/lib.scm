@@ -1,3 +1,6 @@
+(define-macro (define sig body)
+  `(define ,(car sig) (lambda ,(cdr sig) ,body)))
+
 (define (not x)   (if x #f #t))
 (define (null? x) (eqv? x '()))
 

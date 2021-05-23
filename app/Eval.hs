@@ -142,19 +142,11 @@ pattern VariadicLambda params varParam body <- SList
     : body
   )
 
-pattern ProcDef
-  :: String -> [SchemeVal] -> [SchemeVal] -> SchemeVal
-pattern ProcDef name params body <- SList
-  ( SSymbol "define"
-    : SList (SSymbol name : params)
-    : body
-  )
-
-pattern VariadicProcDef
-  :: String -> [SchemeVal] -> SchemeVal -> [SchemeVal] -> SchemeVal
-pattern VariadicProcDef name params varParam body <- SList
-  ( SSymbol "define"
-    : SDottedList (SSymbol name : params) varParam
+pattern VariadicOnlyLambda
+  ::  SchemeVal -> [SchemeVal] -> SchemeVal
+pattern VariadicOnlyLambda varParam body <- SList
+  ( SSymbol "lambda"
+    : varParam
     : body
   )
 
@@ -202,6 +194,10 @@ eval env (VariadicLambda params varParam body) = do
   liftThrows $ SProc <$> callableSpec
     "<lambda>" env params (Just varParam) body
 
+eval env (VariadicOnlyLambda varParam body) = do
+  liftThrows $ SProc <$> callableSpec
+    "<lambda>" env [] (Just varParam) body
+
 eval env (SList [SSymbol "if", predicate, consq, alt]) =
   eval env predicate >>= \case
     SBool False -> eval env alt
@@ -215,18 +211,6 @@ eval env (SList [SSymbol "set!", SSymbol varName, form]) =
 eval env (SList [SSymbol "define", SSymbol varName, form]) =
   do val <- eval env form
      liftIO $ defineVar env varName val
-     return nil
-
-eval env (ProcDef name params body) =
-  do proc' <- liftThrows $ SProc <$> callableSpec
-       name env params Nothing body
-     liftIO $ defineVar env name proc'
-     return nil
-
-eval env (VariadicProcDef name params varParam body) =
-  do proc' <- liftThrows $ SProc <$> callableSpec
-       name env params (Just varParam) body
-     liftIO $ defineVar env name proc'
      return nil
 
 eval env (MacroDef name params body) =
