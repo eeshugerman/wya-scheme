@@ -5,7 +5,7 @@ import qualified Data.Bifunctor
 import qualified System.IO as IO
 import qualified GHC.IO.Handle
 import Data.Functor ((<&>))
-import Control.Monad.Except ( throwError, liftIO )
+import Control.Monad.Except ( throwError, liftIO, runExceptT )
 import qualified Text.Parsec.Pos as Parsec
 
 import Types
@@ -85,7 +85,8 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   ]
   ++
   map (Data.Bifunctor.second SIOProc)
-  [ ("apply",              wrappedApply)
+  [ ("with-exception-handler",  withExceptionHandler)
+  , ("apply",              wrappedApply)
 
   , ("open-input-file",    makePort IO.ReadMode)
   , ("open-output-file",   makePort IO.WriteMode)
@@ -399,6 +400,17 @@ raise = \case
   [SError err] -> throwError err
   [badArg] -> throwError $ TypeMismatch "error" badArg
   badArgs -> throwError $ NumArgs 1 badArgs
+
+withExceptionHandler :: [SchemeVal] -> IOSchemeValOrError
+withExceptionHandler = \case
+  [handler@(SProc _), thunk@(SProc _)] ->
+    liftIO (runExceptT (apply thunk [])) >>= \case
+      Left err -> apply handler [SError err]
+      Right val -> return val
+  [badArg, SProc _] -> throwError $ TypeMismatch "proc" badArg
+  [SProc _, badArg] -> throwError $ TypeMismatch "proc" badArg
+  [badArg, _]       -> throwError $ TypeMismatch "proc" badArg
+  badArgs           -> throwError $ NumArgs 2 badArgs
 
 
 

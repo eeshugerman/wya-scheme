@@ -54,3 +54,27 @@ bar
 (foo 1 2 3 4)
 
 (define (add a b) (+ 1 2))
+
+(write-string "Hello, World!\n")
+
+(define (length list)
+  (if (equal? list '())
+      0
+      (+ 1 (length (cdr list)))))
+
+
+(define (my-avg numbers)
+  (/ (apply + numbers)
+     (length numbers)))
+
+(define (handler err)
+  (write-string "caught exception: ")
+  (write err)
+  (write-string " continuing...\n"))
+
+(with-exception-handler handler
+  (lambda () (raise (bad-form-error "bad form" '()))))
+
+(write
+ (with-exception-handler handler
+   (lambda () (+ 1 1))))

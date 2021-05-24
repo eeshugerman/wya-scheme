@@ -227,7 +227,9 @@ eval env (VariadicMacroDef name params varParam body) =
 
 eval env (SList [SSymbol "eval",  val]) = eval env val
 
--- TODO: handle file DNE (here and in open-input-file, etc)
+-- TODO: handle file DNE (here and in IO primitives)
+--   better yet, fix in IO primitives and then define
+--   `load` in scheme
 eval env (SList [SSymbol "load",  val]) = case val of
   SString filename ->
     liftIO (readFile filename) >>=
