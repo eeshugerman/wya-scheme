@@ -6,7 +6,7 @@ module Env
   , extendWith
   ) where
 
-import Data.IORef (writeIORef, readIORef, newIORef)
+import Data.IORef (IORef, writeIORef, readIORef, newIORef)
 import Control.Monad.Except (throwError, liftIO)
 import qualified Data.Unique as U
 
@@ -56,7 +56,16 @@ defineVar envRef varName val = do
 
 extendWith :: [(String, SchemeVal)] -> Env -> IO Env
 extendWith bindings baseEnvRef = do
-  baseEnvMap <- readIORef baseEnvRef
-  envRef <- newIORef baseEnvMap
+  envRef <- deepCopy baseEnvRef
   mapM_ (uncurry $ defineVar envRef) bindings
   return envRef
+  where
+    deepCopy :: Env -> IO Env
+    deepCopy oldEnv = do
+      oldMap <- readIORef oldEnv
+      newMap <- mapM copy oldMap
+      newIORef newMap
+
+    copy :: IORef SchemeVal -> IO (IORef SchemeVal)
+    copy = \x -> readIORef x >>= newIORef
+

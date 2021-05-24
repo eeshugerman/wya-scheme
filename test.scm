@@ -78,3 +78,10 @@ bar
 (write
  (with-exception-handler handler
    (lambda () (+ 1 1))))
+(write-string "\n")
+
+
+(define scope-test 1)
+((lambda () (define scope-test (+ scope-test 1))))
+(write scope-test)
+(write-string "\n")

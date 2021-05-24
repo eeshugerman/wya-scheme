@@ -114,6 +114,7 @@ type SchemeValOrError   = Either SchemeError SchemeVal
 type IOSchemeValOrError = ExceptT SchemeError IO SchemeVal
 type IONilOrError       = ExceptT SchemeError IO ()
 
+-- TODO: rename to EnvRef
 type Env = IORef (Map.Map String (IORef SchemeVal))
 
 ---------------------------------------------------------------------------------
