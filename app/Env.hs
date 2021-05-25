@@ -47,25 +47,15 @@ defineVar :: Env -> String -> SchemeVal -> IO ()
 defineVar envRef varName val = do
   envMap <- readIORef envRef
   taggedVal <- fillTag val
-  case Map.lookup varName envMap of
-    Nothing -> do
-      varRef <- newIORef taggedVal
-      let newEnvMap = Map.insert varName varRef envMap
-      liftIO $ writeIORef envRef newEnvMap
-    Just varRef -> writeIORef varRef taggedVal
+  varRef <- newIORef taggedVal
+  let newEnvMap = Map.insert varName varRef envMap
+  liftIO $ writeIORef envRef newEnvMap
+
 
 extendWith :: [(String, SchemeVal)] -> Env -> IO Env
 extendWith bindings baseEnvRef = do
-  envRef <- deepCopy baseEnvRef
+  baseEnvMap <- readIORef baseEnvRef
+  envRef <- newIORef baseEnvMap
   mapM_ (uncurry $ defineVar envRef) bindings
   return envRef
-  where
-    deepCopy :: Env -> IO Env
-    deepCopy oldEnv = do
-      oldMap <- readIORef oldEnv
-      newMap <- mapM copy oldMap
-      newIORef newMap
-
-    copy :: IORef SchemeVal -> IO (IORef SchemeVal)
-    copy = \x -> readIORef x >>= newIORef
 
