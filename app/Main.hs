@@ -9,16 +9,36 @@ import Parser (readExpr, readExprs)
 import Primitives (primitives)
 import Env (extendWith, nullEnv)
 import Eval (eval)
-import Types (Env, SchemeValOrError)
+import Types
+  ( Env
+  , SchemeVal (SList, SSymbol, SString)
+  , SchemeError
+  , SchemeValOrError
+  )
 
 
 primitiveEnv :: IO Env
-primitiveEnv = nullEnv >>= extendWith primitives
+primitiveEnv = nullEnv
+  >>= extendWith primitives
+
+
+loadPreludeForm :: SchemeVal
+loadPreludeForm = SList [SSymbol "load", SString "app/lib.scm"]
+
+
+evalPrelude :: Env -> IO (Maybe SchemeError)
+evalPrelude env =
+  runExceptT (eval env loadPreludeForm) >>= \case
+    Left err -> return $ Just err
+    Right _ -> return Nothing
+
 
 runRepl :: IO ()
 runRepl = do
   env <- primitiveEnv
-  loop readFromPrompt (evalAndPrint env)
+  evalPrelude env >>= \case
+    Just err -> print err
+    Nothing -> loop readFromPrompt (evalAndPrint env)
   where
     loop :: Monad m => m a -> (a -> m ()) -> m ()
     loop getNext action = do
@@ -33,9 +53,9 @@ runRepl = do
 
     evalAndPrint :: Env -> SchemeValOrError -> IO ()
     evalAndPrint env expr = case expr of
-      Left parserError -> print parserError
-      Right valid ->
-        runExceptT (eval env valid) >>= \case
+      Left err -> print err
+      Right exprs ->
+        runExceptT (eval env exprs) >>= \case
           Left err -> print err
           Right val -> print val
 
@@ -44,12 +64,15 @@ evalFile :: FilePath -> IO ()
 evalFile filename = do
   contents <- readFile filename
   env <- primitiveEnv
-  case readExprs filename contents of
-    Left err -> print err
-    Right exprs ->
-      runExceptT (mapM_ (eval env) exprs) >>= \case
+  evalPrelude env >>= \case
+    Just err -> print err
+    Nothing ->
+      case readExprs filename contents of
         Left err -> print err
-        Right _ -> return ()
+        Right exprs ->
+          runExceptT (mapM_ (eval env) exprs) >>= \case
+            Left err -> print err
+            Right _ -> return ()
 
 
 main :: IO ()
