@@ -22,3 +22,12 @@
 (define-macro (let bindings expr)
   `(apply (lambda ,(map first bindings) ,expr)
           ',(map second bindings)))
+
+(define *gensym-counter* 0)
+
+(define (gensym)
+  "shitty gensym"
+  (set! *gensym-counter* (+ *gensym-counter* 1))
+  (string->symbol (string-append "**g"
+                                 (number->string *gensym-counter*)
+                                 "**")))

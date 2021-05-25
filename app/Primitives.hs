@@ -54,6 +54,7 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
 
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
+  , ("number->string", numberToString)
 
   , ("and",         and')
   , ("or",          or')
@@ -62,6 +63,8 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("string>?",    strBoolBinOp (>))
   , ("string<=?",   strBoolBinOp (<=))
   , ("string>=?",   strBoolBinOp (>=))
+
+  , ("string-append", stringAppend)
 
   , ("car",         car)
   , ("cdr",         cdr)
@@ -280,6 +283,29 @@ stringToSymbol [SString arg] = return $ SSymbol arg
 stringToSymbol [arg]         = throwError $ TypeMismatch "string" arg
 stringToSymbol args          = throwError $ NumArgs 1 args
 
+numberToString :: [SchemeVal] -> SchemeValOrError
+numberToString = \case
+  [SchemeNumber num] -> return $ SString $ case num of
+    SInteger val -> show val
+    SRational val -> show val
+    SReal val -> show val
+    SComplex val -> show val
+  [badArg] -> throwError $ TypeMismatch "number" badArg
+  badArgs -> throwError $ NumArgs 1 badArgs
+
+
+-----------------------------------------
+-- string ops
+-----------------------------------------
+stringAppend :: [SchemeVal] -> SchemeValOrError
+stringAppend args = do
+  getStrings args <&> (SString . concat)
+  where
+    getStrings :: [SchemeVal] -> Either SchemeError [String]
+    getStrings = mapM $ \case
+      SString val -> return val
+      badArg -> throwError $ TypeMismatch "string" badArg
+
 
 -----------------------------------------
 -- list ops
@@ -411,7 +437,6 @@ withExceptionHandler = \case
   [SProc _, badArg] -> throwError $ TypeMismatch "proc" badArg
   [badArg, _]       -> throwError $ TypeMismatch "proc" badArg
   badArgs           -> throwError $ NumArgs 2 badArgs
-
 
 
 -----------------------------------------
