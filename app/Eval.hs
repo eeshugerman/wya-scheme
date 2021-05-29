@@ -198,6 +198,18 @@ eval env (VariadicOnlyLambda varParam body) = do
   liftThrows $ SProc <$> callableSpec
     "<lambda>" env [] (Just varParam) body
 
+eval env (MacroDef name params body) =
+  do macro <- liftThrows $ SMacro <$> callableSpec
+       name env params Nothing body
+     liftIO $ defineVar env name macro
+     return nil
+
+eval env (VariadicMacroDef name params varParam body) =
+  do macro <- liftThrows $ SMacro <$> callableSpec
+       name env params (Just varParam) body
+     liftIO $ defineVar env name macro
+     return nil
+
 eval env (SList [SSymbol "if", predicate, consq, alt]) =
   eval env predicate >>= \case
     SBool False -> eval env alt
@@ -211,18 +223,6 @@ eval env (SList [SSymbol "set!", SSymbol varName, form]) =
 eval env (SList [SSymbol "define", SSymbol varName, form]) =
   do val <- eval env form
      liftIO $ defineVar env varName val
-     return nil
-
-eval env (MacroDef name params body) =
-  do macro <- liftThrows $ SMacro <$> callableSpec
-       name env params Nothing body
-     liftIO $ defineVar env name macro
-     return nil
-
-eval env (VariadicMacroDef name params varParam body) =
-  do macro <- liftThrows $ SMacro <$> callableSpec
-       name env params (Just varParam) body
-     liftIO $ defineVar env name macro
      return nil
 
 eval env (SList [SSymbol "eval",  val]) = eval env val
