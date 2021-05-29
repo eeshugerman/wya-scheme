@@ -26,9 +26,9 @@
       (cons (proc (car l))
             (map proc (cdr l)))))
 
-(define-macro (let bindings expr)
-  `(apply (lambda ,(map first bindings) ,expr)
-          ',(map second bindings)))
+(define-macro (let bindings . expr)
+  `(apply (lambda ,(map first bindings) (begin ,@expr))
+          (list ,@(map second bindings))))
 
 (define-macro (cond . cond-clauses)
   (define (loop clauses)
