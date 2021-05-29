@@ -225,6 +225,7 @@ eval env (SList [SSymbol "define", SSymbol varName, form]) =
      liftIO $ defineVar env varName val
      return nil
 
+-- TODO: this is supposed to take an `env' arg
 eval env (SList [SSymbol "eval",  val]) = eval env val
 
 -- TODO: handle file DNE (here and in IO primitives)
@@ -237,6 +238,14 @@ eval env (SList [SSymbol "load",  val]) = case val of
     mapM_ (eval env) >>
     return nil
   badArg -> throwError $ TypeMismatch "string" badArg
+
+eval env (SList [ SSymbol "macroexpand-1" , Quote val]) = case val of
+  SList (macroExpr:args) ->
+    eval env macroExpr >>= \case
+      SMacro transformer -> apply (SProc transformer) args
+      badArg -> throwError $ TypeMismatch "macro" badArg
+  badArg -> throwError $ TypeMismatch "list" badArg
+
 
 eval env (SList (procExpr:args)) =
   eval env procExpr >>= \case

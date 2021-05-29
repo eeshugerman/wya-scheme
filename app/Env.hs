@@ -6,7 +6,7 @@ module Env
   , extendWith
   ) where
 
-import Data.IORef (IORef, writeIORef, readIORef, newIORef)
+import Data.IORef (writeIORef, readIORef, newIORef)
 import Control.Monad.Except (throwError, liftIO)
 import qualified Data.Unique as U
 
