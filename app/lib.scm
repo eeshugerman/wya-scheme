@@ -13,6 +13,13 @@
 (define (first l) (car l))
 (define (second l) (car (cdr l)))
 
+(define (caar l) (car (car l)))
+(define (cdar l) (cdr (car l)))
+(define (cadr l) (car (cdr l)))
+(define (cddr l) (cdr (cdr l)))
+
+(define (cadar l) (car (cdr (car l))))
+
 (define (map proc l)
   (if (null? l)
       '()
@@ -23,6 +30,16 @@
   `(apply (lambda ,(map first bindings) ,expr)
           ',(map second bindings)))
 
+(define-macro (cond . cond-clauses)
+  (define (loop clauses)
+    (if (null? clauses)
+        '(#t ())
+        `(if ,(caar clauses)
+             ,(cadar clauses)
+             ,(loop (cdr clauses)))))
+  (loop cond-clauses))
+
+
 (define *gensym-counter* 0)
 
 (define (gensym)
@@ -31,3 +48,4 @@
   (string->symbol (string-append "**g"
                                  (number->string *gensym-counter*)
                                  "**")))
+
