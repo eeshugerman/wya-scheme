@@ -30,6 +30,9 @@
       (cons (proc (car l))
             (map proc (cdr l)))))
 
+(define (macroexpand-1 form)
+  (apply (wya/macro->lambda (eval (car form)))
+         (cdr form)))
 
 (define *gensym-counter* 0)
 

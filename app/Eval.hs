@@ -229,11 +229,9 @@ eval env (SList (SSymbol "begin" : forms)) =
   last <$> mapM (eval env) forms
 
 -- TODO: this is supposed to take an `env' arg
-eval env (SList [SSymbol "eval",  val]) = eval env val
+eval env (SList [SSymbol "eval",  val]) = eval env val >>= eval env
 
--- TODO: handle file DNE (here and in IO primitives)
---   better yet, fix in IO primitives and then define
---   `load` in scheme
+-- TODO: improve `read' so that this can be a regular scheme proc
 eval env (SList [SSymbol "load",  val]) = case val of
   SString filename ->
     liftIO (readFile filename) >>=
@@ -241,14 +239,6 @@ eval env (SList [SSymbol "load",  val]) = case val of
     mapM_ (eval env) >>
     return nil
   badArg -> throwError $ TypeMismatch "string" badArg
-
--- TODO: does this need to be a special form?
-eval env (SList [ SSymbol "macroexpand-1" , Quote val]) = case val of
-  SList (macroExpr:args) ->
-    eval env macroExpr >>= \case
-      SMacro transformer -> apply (SProc transformer) args
-      badArg -> throwError $ TypeMismatch "macro" badArg
-  badArg -> throwError $ TypeMismatch "list" badArg
 
 eval env (SList (procExpr:args)) =
   eval env procExpr >>= \case

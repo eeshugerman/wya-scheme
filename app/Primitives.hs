@@ -55,6 +55,7 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("symbol->string", symbolToString)
   , ("string->symbol", stringToSymbol)
   , ("number->string", numberToString)
+  , ("wya/macro->lambda", wyaMacroToLambda)
 
   , ("string=?",    strBoolBinOp (==))
   , ("string<?",    strBoolBinOp (<))
@@ -276,6 +277,11 @@ numberToString = \case
   [badArg] -> throwError $ TypeMismatch "number" badArg
   badArgs -> throwError $ NumArgs 1 badArgs
 
+-- non-standard!
+wyaMacroToLambda :: [SchemeVal] -> SchemeValOrError
+wyaMacroToLambda [SMacro spec] = return $ SProc spec
+wyaMacroToLambda [badArg] = throwError $ TypeMismatch "macro" badArg
+wyaMacroToLambda badArgs = throwError $ NumArgs 1 badArgs
 
 -----------------------------------------
 -- string ops
@@ -445,6 +451,7 @@ wrappedApply [proc', SList args] = apply proc' args
 wrappedApply [_,     nonList]    = throwError $ TypeMismatch "list" nonList
 wrappedApply badArgs             = throwError $ NumArgs 2 badArgs
 
+-- TODO: handle file DNE
 makePort :: IO.IOMode -> [SchemeVal] -> IOSchemeValOrError
 makePort mode [SString filename] = fmap SPort $ liftIO $ IO.openFile filename mode
 makePort _    [nonString]        = throwError $ TypeMismatch "string" nonString
