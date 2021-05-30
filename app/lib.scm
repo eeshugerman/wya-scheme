@@ -91,7 +91,7 @@
                            ,(loop (cdr clauses))))
                   (if (and (= clause-length 3)
                            (equal? (second clause) '=>))
-                      (let ((test-result-var (gensym)))
+                      (let ((var (gensym)))
                         `(let ((,var ,(car clause)))
                            (if ,var
                                (,(third clause) ,var)
