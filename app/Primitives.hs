@@ -56,8 +56,6 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("string->symbol", stringToSymbol)
   , ("number->string", numberToString)
 
-  , ("and",         and')
-  , ("or",          or')
   , ("string=?",    strBoolBinOp (==))
   , ("string<?",    strBoolBinOp (<))
   , ("string>?",    strBoolBinOp (>))
@@ -188,21 +186,6 @@ isNumTypeOp test = \case
   [SchemeNumber num] -> return $ SBool $ test num
   [_]                -> return $ SBool False
   args               -> throwError $ NumArgs 1 args
-
-
------------------------------------------
--- and/or
------------------------------------------
-and' :: [SchemeVal] -> SchemeValOrError
-and' [] = return $ SBool True
-and' (SBool False : _) = return $ SBool False
-and' [last'] = return last'
-and' (_:xs) = and' xs
-
-or' :: [SchemeVal] -> SchemeValOrError
-or' [] = return $ SBool False
-or' (SBool False : xs) = or' xs
-or' (truthy : _) = return truthy
 
 -----------------------------------------
 -- type testing
