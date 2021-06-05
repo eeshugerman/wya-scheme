@@ -17,7 +17,7 @@ import Types
 import Control.Monad.Except (throwError)
 import Data.Ratio ((%))
 
--- TODO: use Parsec's lexer/tokenizer
+-- TODO: use Parsec's lexer/tokenizer (comments!)
 -- TODO: use Attoparsec, for incremental parsing? see `read` primative
 -- TODO: sort out naming convention -- what gets parse/read// prefix?
 
