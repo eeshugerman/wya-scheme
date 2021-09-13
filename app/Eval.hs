@@ -19,7 +19,7 @@ import Parser (readExprs)
 
 
 ---------------------------------------------------------------------------------
--- misc helpes
+-- misc helpers
 ---------------------------------------------------------------------------------
 nil :: SchemeVal
 nil = SList []
@@ -35,9 +35,9 @@ liftThrows = \case
 negativeQqDepth :: SchemeVal -> SchemeError
 negativeQqDepth = BadForm "negative quasiquote depth"
 
-data MaybeSpliced a = Typical a | Spliced a
+data EitherSpliced a = Typical a | Spliced a
 
-instance Functor MaybeSpliced where
+instance Functor EitherSpliced where
   fmap f = \case
     Typical val -> Typical $ f val
     Spliced val -> Spliced $ f val
@@ -52,7 +52,7 @@ evalQuasiquoted env (SList list) = iter 1 [] list >>= \case
       :: Integer      -- quasiquote depth
       -> [SchemeVal]  -- accumulator
       -> [SchemeVal]  -- remaining
-      -> ExceptT SchemeError IO (MaybeSpliced SchemeVal)
+      -> ExceptT SchemeError IO (EitherSpliced SchemeVal)
 
     iter _ acc [] = return $ Typical $ SList $ reverse acc
 
