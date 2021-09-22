@@ -69,8 +69,9 @@ primitives = map (Data.Bifunctor.second SPrimativeProc)
   , ("cdr",         cdr)
   , ("cons",        cons)
 
-  , ("eqv?",        eqv)
+  , ("wya/eq?",     wyaEq)
   , ("eq?",         eq)
+  , ("eqv?",        eqv)
   , ("equal?",      equal)
 
   , ("num-args-error",      numArgsError)
@@ -329,19 +330,20 @@ cons args                         = throwError $ NumArgs 2 args
 -- equality
 -----------------------------------------
 
--- ... a most unpermissive eq?
--- TODO: oops, this isn't spec-compliant...
-_eq :: SchemeVal -> SchemeVal -> Bool
-_eq a b = case (a, b) of
+-- a most discerning eq?... non-standard
+-- if `wya/id` existed, would be same as
+-- (define (wya/eq? a b) (= (wya/id a) (wya/id b)))
+_wyaEq :: SchemeVal -> SchemeVal -> Bool
+_wyaEq a b = case (a, b) of
   (SchemeVal (Just tagA) _, SchemeVal (Just tagB) _) -> tagA == tagB
   _ -> False
 
-eq :: [SchemeVal] -> SchemeValOrError
-eq [a, b] = return $ SBool $ _eq a b
-eq args   = throwError $ NumArgs 2 args
+wyaEq :: [SchemeVal] -> SchemeValOrError
+wyaEq [a, b] = return $ SBool $ _wyaEq a b
+wyaEq args   = throwError $ NumArgs 2 args
 
-_eqv :: SchemeVal -> SchemeVal -> Bool
-_eqv a b = case (a, b) of
+_eq :: SchemeVal -> SchemeVal -> Bool
+_eq a b = case (a, b) of
   (SChar a',        SChar b')   -> a' == b'
   (SString a',      SString b') -> a' == b'
   (SSymbol a',      SSymbol b') -> a' == b'
@@ -354,12 +356,20 @@ _eqv a b = case (a, b) of
       (SComplex a'',  SComplex b'')  -> a'' == b''
       (_, _)                         -> False
   (SList [], SList []) -> True
-  (a', b') -> _eq a' b'
+  (a', b') -> _wyaEq a' b'
 
+eq :: [SchemeVal] -> SchemeValOrError
+eq [a, b] = return $ SBool $ _eq a b
+eq args   = throwError $ NumArgs 2 args
+
+
+-- the spec permits (define eqv? eqv?)
+_eqv :: SchemeVal -> SchemeVal -> Bool
+_eqv = _eq
 
 eqv :: [SchemeVal] -> SchemeValOrError
-eqv [a, b] = return $ SBool $ _eqv a b
-eqv args   = throwError $ NumArgs 2 args
+eqv = eq
+
 
 _equal :: SchemeVal -> SchemeVal -> Bool
 _equal a b = case (a, b) of
